@@ -1,0 +1,37 @@
+[
+  {
+    "bookSourceName": "轻之文库",
+    "bookSourceUrl": "https://www.linovel.net",
+    "bookSourceGroup": "轻小说",
+    "bookSourceType": 0,
+    "bookSourceComment": "轻之文库（linovel.net）原创轻小说站。2026-10 实测可用：搜索/书目/目录/正文四段都取得到。",
+    "enabled": true,
+    "searchUrl": "/search/?kw={{key}}&page={{page}}",
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\"}",
+    "ruleSearch": {
+      "bookList": "@css:div.rank-book-list a.search-book",
+      "name": "@css:div.book-name@text",
+      "author": "@css:div.book-extra@text##\\s*丨.*$",
+      "bookUrl": "href",
+      "coverUrl": "@css:img@src",
+      "intro": "@css:div.book-intro@text",
+      "kind": "@css:div.book-tag@text"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1.book-title@text",
+      "author": "@css:ol.breadcrumb a[href*=\"/user/info\"]@text##的作品$",
+      "intro": "@css:div.about-text@text",
+      "coverUrl": "@css:div.book-cover img@src",
+      "kind": "@css:div.book-cats a@text",
+      "lastChapter": "@css:div.book-last-update@text##^更新于\\s*"
+    },
+    "ruleToc": {
+      "chapterList": "@css:div.section-list div.chapter a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "@css:div.article-text@html"
+    }
+  }
+]

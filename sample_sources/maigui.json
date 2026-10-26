@@ -1,0 +1,44 @@
+{
+  "bookSourceName": "麦归文学",
+  "bookSourceGroup": "📚出版物",
+  "bookSourceComment": "maiguiread.com 麦归文学（出版物在线阅读）。搜索是 Nuxt SSR 页面 /search?q=关键词（注意参数是 q，不是 keyword），直接出 HTML 结果。书页只有「即刻阅读」，目录要调公开接口 /api/public/chapter/list/{nid}（一次性返回全部章节，含正文，体积较大）。章节页 SSR 已带正文 div.chapter-content。",
+  "bookSourceType": 0,
+  "bookSourceUrl": "https://www.maiguiread.com",
+  "concurrentRate": "1200/1",
+  "bookUrlPattern": "/novel/[A-Za-z0-9]+",
+  "enabled": true,
+  "enabledExplore": false,
+  "customOrder": 0,
+  "header": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Referer": "https://www.maiguiread.com/"
+  },
+  "searchUrl": "/search?q={{key}}",
+  "ruleSearch": {
+    "bookList": "@css:ul.sr-list li.sr-row",
+    "name": "@css:h2.sr-book-title a@text",
+    "author": "@css:dl.sr-meta dd!0@text",
+    "bookUrl": "@css:h2.sr-book-title a@href",
+    "coverUrl": "@css:div.sr-cover img@src",
+    "intro": "@css:p.sr-desc@text",
+    "checkKeyWord": "解忧"
+  },
+  "ruleBookInfo": {
+    "name": "@css:h1.book-name@text",
+    "author": "@css:div.info-meta span.meta-strong!0@text",
+    "coverUrl": "@css:div.info-cover img@src",
+    "intro": "@css:div.info-desc p.desc-text@text",
+    "kind": "@css:div.info-meta div.tags-row span.meta-link!1@text",
+    "tocUrl": "@js:'https://www.maiguiread.com/api/public/chapter/list/' + String(baseUrl).split('/').pop()"
+  },
+  "ruleToc": {
+    "chapterList": "@js:(function(){var d=JSON.parse(result||'{}');var L=(d&&d.data)||[];var nid=String(baseUrl||'').split('/').pop();if(nid.indexOf('?')>=0){nid=nid.split('?')[0];}var o=[];for(var i=0;i<L.length;i++){var c=L[i];var t=String(c.title||'').replace(/[<>]/g,'');o.push('<a href=\"/novel/'+nid+'/chapter/'+c.cid+'\">'+t+'</a>');}return o;})()",
+    "chapterName": "@css:a@text",
+    "chapterUrl": "@css:a@href",
+    "nextTocUrl": ""
+  },
+  "ruleContent": {
+    "content": "@css:div.chapter-content@html"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "bookSourceName": "カクヨム",
+  "bookSourceGroup": "日本轻小说",
+  "bookSourceUrl": "https://kakuyomu.jp",
+  "bookSourceType": 0,
+  "enabled": true,
+  "searchUrl": "/search?q={{key}}",
+  "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\",\"Accept-Language\":\"ja,en;q=0.8\"}",
+  "ruleSearch": {
+    "bookList": "@css:h3",
+    "name": "@css:a[href^=\"/works/\"]@text",
+    "author": "@css:a[href^=\"/users/\"]@text",
+    "bookUrl": "@css:a[href^=\"/works/\"]@href",
+    "intro": "",
+    "kind": "",
+    "lastChapter": ""
+  },
+  "ruleBookInfo": {
+    "name": "@css:h1 a@text",
+    "author": "@css:a[href^=\"/users/\"]!0@text",
+    "intro": "@js:(function(){var s=result;var a=s.indexOf('id=\"__NEXT_DATA__\"');if(a<0){return '';}a=s.indexOf('>',a)+1;var b=s.indexOf('</script>',a);var st=JSON.parse(s.slice(a,b)).props.pageProps.__APOLLO_STATE__;for(var k in st){var w=st[k];if(k.indexOf('Work:')===0&&w&&w.introduction){return String(w.introduction);}}return '';})()",
+    "kind": "",
+    "lastChapter": "",
+    "coverUrl": "",
+    "tocUrl": ""
+  },
+  "ruleToc": {
+    "chapterList": "@js:(function(){var s=result;var a=s.indexOf('id=\"__NEXT_DATA__\"');if(a<0){throw new Error('no __NEXT_DATA__');}a=s.indexOf('>',a)+1;var b=s.indexOf('</script>',a);var st=JSON.parse(s.slice(a,b)).props.pageProps.__APOLLO_STATE__;var wid=baseUrl.split('/works/')[1];wid=wid?wid.split('/')[0]:'';var order=[];var k;var i;for(k in st){if(k.indexOf('TableOfContentsChapter:')===0){var u=st[k].episodeUnions||[];for(i=0;i<u.length;i++){order.push(u[i].__ref);}}}if(order.length===0){for(k in st){if(k.indexOf('Episode:')===0){order.push(k);}}}var out=[];for(i=0;i<order.length;i++){var e=st[order[i]];if(!e||!e.id){continue;}var t=String(e.title||'');t=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');out.push('<a href=\"/works/'+wid+'/episodes/'+e.id+'\">'+t+'</a>');}return out;})()",
+    "chapterName": "@css:a@text",
+    "chapterUrl": "@css:a@href",
+    "isVip": ""
+  },
+  "ruleContent": {
+    "content": "@css:div.widget-episodeBody p@text"
+  }
+}

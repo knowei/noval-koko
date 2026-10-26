@@ -1,0 +1,38 @@
+[
+  {
+    "bookSourceUrl": "https://standardebooks.org",
+    "bookSourceName": "Standard Ebooks",
+    "bookSourceGroup": "真实源·英文公版",
+    "bookSourceType": 0,
+    "bookSourceComment": "Standard Ebooks：公版英文电子书站，服务端渲染、无反爬、结构稳定，用于真实网络端到端验证（搜索 → 书目 → 目录 → 正文）。",
+    "enabled": true,
+    "enabledCookieJar": true,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    },
+    "searchUrl": "/ebooks?query={{key}}",
+    "ruleSearch": {
+      "bookList": "@css:main ol li",
+      "name": "@css:p!0@text",
+      "author": "@css:p.author@text",
+      "bookUrl": "@css:a[property=\"schema:url\"]!0@href",
+      "coverUrl": "@css:img@src",
+      "intro": "@js:'Standard Ebooks 公版书（英文）'"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1@text",
+      "author": "@css:hgroup p@text",
+      "intro": "@css:section#description p@text",
+      "coverUrl": "@css:main img@src",
+      "tocUrl": "@js:baseUrl + '/text'"
+    },
+    "ruleToc": {
+      "chapterList": "@css:main ol li a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "@css:main p@html"
+    }
+  }
+]

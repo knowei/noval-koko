@@ -1,0 +1,46 @@
+{
+  "bookSourceName": "哔哩轻小说",
+  "bookSourceGroup": "轻小说",
+  "bookSourceComment": "linovelib.com 日系轻小说中文版。搜索是 POST /S6/（内容字段名是 key，不是 searchkey）；正文分页用 /novel/{bid}/{cid}_2.html。",
+  "bookSourceType": 0,
+  "bookSourceUrl": "https://www.linovelib.com",
+  "concurrentRate": "1200/1",
+  "bookUrlPattern": "/novel/\\d+\\.html",
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": false,
+  "customOrder": 0,
+  "header": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Referer": "https://www.linovelib.com/"
+  },
+  "searchUrl": "https://www.linovelib.com/S6/,{\"method\":\"POST\",\"body\":\"key={{key}}\",\"charset\":\"utf-8\"}",
+  "ruleSearch": {
+    "bookList": "@css:div.search-result-list",
+    "name": "@css:h2.tit a@text",
+    "author": "@css:div.bookinfo a!0@text",
+    "bookUrl": "@css:h2.tit a@href",
+    "coverUrl": "@css:img@data-original",
+    "intro": "@css:div.se-result-infos p@text",
+    "checkKeyWord": "史莱姆"
+  },
+  "ruleBookInfo": {
+    "name": "@css:h1.book-name@text",
+    "author": "@css:meta[property=\"og:novel:author\"]@content",
+    "coverUrl": "@css:div.book-img img@src",
+    "intro": "@css:div.book-dec@text",
+    "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content"
+  },
+  "ruleToc": {
+    "chapterList": "@css:ul.chapter-list li a",
+    "chapterName": "text",
+    "chapterUrl": "href",
+    "nextTocUrl": ""
+  },
+  "ruleContent": {
+    "content": "@css:#TextContent@html##<center class=\"center-note\">[\\s\\S]*?</center>###",
+    "nextContentUrl": "text.下一页@href"
+  }
+}

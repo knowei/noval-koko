@@ -1,0 +1,555 @@
+[
+  {
+    "bookSourceComment": "",
+    "bookSourceGroup": "🧩漫画",
+    "bookSourceName": "看漫画kanman",
+    "bookSourceType": 2,
+    "bookSourceUrl": "http://m.kanman.com",
+    "bookUrlPattern": "",
+    "customOrder": 0,
+    "enabled": true,
+    "enabledCookieJar": true,
+    "enabledExplore": false,
+    "header": "{\ruser-agent: \"Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.71 Mobile Safari/537.36\"\r}",
+    "lastUpdateTime": 1695808615994,
+    "loginCheckJs": "",
+    "loginUrl": "",
+    "respondTime": 180000,
+    "ruleBookInfo": {
+      "author": "class.sub_r@tag.p.0@text",
+      "coverUrl": "id.Cover@tag.img@src",
+      "intro": "class.txtDesc@text##介绍:",
+      "kind": "class.tags@class.item@text",
+      "lastChapter": "id.chapter-list-1@tag.li.-2@tag.a@tag.span@text",
+      "name": "id.js_comic_id@text",
+      "wordCount": "class.date@text"
+    },
+    "ruleContent": {
+      "content": "@js:var json = result.match(/window.comicInfo=(.*?),window.hideguide/)[1];\nvar json = eval('json='+json)\nvar image_list = [];\njson.current_chapter.chapter_img_list.map(item=>{\n    image_list.push('<img src=\"'+item+'\">')\n})\nimage_list.join(\"\\n\");",
+      "imageStyle": "",
+      "nextContentUrl": ""
+    },
+    "ruleExplore": {},
+    "ruleReview": {},
+    "ruleSearch": {
+      "author": "",
+      "bookList": "class.comic-item",
+      "bookUrl": "tag.a@href",
+      "coverUrl": "@css:div.thumbnail img@data-src",
+      "kind": "",
+      "lastChapter": "class.chapter@text",
+      "name": "class.title@text"
+    },
+    "ruleToc": {
+      "chapterList": "class.chapter-list@tag.li",
+      "chapterName": "tag.a@text",
+      "chapterUrl": "tag.a@href"
+    },
+    "searchUrl": "http://m.kanman.com/sort/all.html?cache=false&search_key={{key}}",
+    "weight": 0
+  },
+  {
+    "bookSourceComment": "",
+    "bookSourceGroup": "📖中文小说",
+    "bookSourceName": "河豚小说hetunxs",
+    "bookSourceType": 0,
+    "bookSourceUrl": "http://m.hetunxs.com",
+    "bookUrlPattern": "",
+    "customOrder": 5630,
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "exploreUrl": "玄幻小说::/sort/1_{{page}}.html\n武侠小说::/sort/2_{{page}}.html\n都市小说::/sort/3_{{page}}.html\n历史小说::/sort/4_{{page}}.html\n网游小说::/sort/5_{{page}}.html\n科幻小说::/sort/6_{{page}}.html\n言情小说::/sort/7_{{page}}.html\n其他小说::/sort/8_{{page}}.html",
+    "header": "",
+    "lastUpdateTime": 1699000447102,
+    "loginUrl": "",
+    "respondTime": 6465,
+    "ruleBookInfo": {
+      "author": "[property=\"og:novel:author\"]@content",
+      "coverUrl": "class.block_img2@tag.img@src",
+      "init": "",
+      "intro": "class.intro_info@text##&amp;amp;lt;br&amp;amp;gt;",
+      "kind": "",
+      "lastChapter": "[property=\"og:novel:latest_chapter_name\"]@content",
+      "name": "class.block_txt2@tag.h2@text",
+      "tocUrl": "class.readlink@tag.a.1@href",
+      "wordCount": "[property=\"og:novel:status\"]@content"
+    },
+    "ruleContent": {
+      "content": "id.nr1@html##本章未完.*继续阅读",
+      "nextContentUrl": " id.pb_next@href",
+      "sourceRegex": "",
+      "webJs": ""
+    },
+    "ruleExplore": {
+      "author": "",
+      "bookList": "",
+      "bookUrl": "",
+      "coverUrl": "",
+      "intro": "",
+      "kind": "",
+      "lastChapter": "",
+      "name": "tag.a@text",
+      "wordCount": ""
+    },
+    "ruleReview": {},
+    "ruleSearch": {
+      "author": "",
+      "bookList": "class.cover@tag.p",
+      "bookUrl": "tag.a@href",
+      "checkKeyWord": "黜龙",
+      "coverUrl": "",
+      "intro": "",
+      "kind": "tag.p@text##\\].*|\\[",
+      "lastChapter": "",
+      "name": "tag.a@text",
+      "wordCount": ""
+    },
+    "ruleToc": {
+      "chapterList": "class.chapter@tag.li",
+      "chapterName": "tag.a@text",
+      "chapterUrl": "tag.a@href",
+      "isVip": "",
+      "nextTocUrl": "text.下一页@href",
+      "updateTime": ""
+    },
+    "searchUrl": "/s.php,{\n\"charset\":\"gbk\",\n\"method\":\"POST\",\n\"body\":\"type=articlename&s={{key}}&submit=\"\n}",
+    "weight": 0
+  },
+  {
+    "bookSourceComment": "",
+    "bookSourceGroup": "📖中文小说",
+    "bookSourceName": "连载书lianzaisu",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://m.lianzaisu.com",
+    "bookUrlPattern": "",
+    "customOrder": 6199,
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "exploreUrl": "最近更新::https://m.lianzaisu.com/top-lastupdate-{{page}}/\n最新入库::https://m.lianzaisu.com/top-postdate-{{page}}/\n总点击榜::https://m.lianzaisu.com/top-allvisit-{{page}}/\n总收藏榜::https://m.lianzaisu.com/top-goodnum-{{page}}/\n总推荐榜::https://m.lianzaisu.com/top-allvote-{{page}}/\n总字数榜::https://m.lianzaisu.com/top-size-{{page}}/\n全本小说::https://m.lianzaisu.com/full-{{page}}/\n玄幻小说::https://m.lianzaisu.com/sort-1-{{page}}/\n仙侠小说::https://m.lianzaisu.com/sort-2-{{page}}/\n都市小说::https://m.lianzaisu.com/sort-3-{{page}}/\n历史小说::https://m.lianzaisu.com/sort-4-{{page}}/\n游戏小说::https://m.lianzaisu.com/sort-5-{{page}}/\n科幻小说::https://m.lianzaisu.com/sort-6-{{page}}/\n恐怖小说::https://m.lianzaisu.com/sort-7-{{page}}/\n女生小说::https://m.lianzaisu.com/sort-8-{{page}}/\n其他小说::https://m.lianzaisu.com/sort-9-{{page}}/",
+    "header": "{\n\"User-Agent\":\"Mozilla/5.0(Linux;Android10;RedmiNote8ProBuild/QP1A.190711.020;wv)AppleWebKit/537.36(KHTML,likeGecko)Version/4.0Chrome/83.0.4103.101MobileSafari/537.36\"\n}",
+    "lastUpdateTime": 1704363619479,
+    "loginUrl": "",
+    "respondTime": 5562,
+    "ruleBookInfo": {
+      "coverUrl": "class.block_img2.@img@src",
+      "intro": "class.intro_info@html",
+      "lastChapter": "class.block_txt2@tag.p.6@a@text",
+      "tocUrl": "class.ablum_read.0@a@href"
+    },
+    "ruleContent": {
+      "content": "id.nr1@html"
+    },
+    "ruleExplore": {},
+    "ruleReview": {},
+    "ruleSearch": {
+      "author": "tag.a.2@text",
+      "bookList": "class.cover@p",
+      "bookUrl": "tag.a.1@href",
+      "coverUrl": "tag.a.1@href##/info-(\\d+)(\\d{3})/##https://www.lianzaisu.com/files/article/image/$1/$1$2/$1$2s.jpg",
+      "kind": "tag.a.0@text##\\[|]",
+      "name": "tag.a.1@text"
+    },
+    "ruleToc": {
+      "chapterList": "class.chapter@a",
+      "chapterName": "text",
+      "chapterUrl": "href",
+      "nextTocUrl": "text.下一页@href"
+    },
+    "searchUrl": "https://m.lianzaisu.com/modules/article/waps.php,{\n\"charset\":\"gbk\",\n\"method\":\"POST\",\n\"body\":\"searchtype=articlename&searchkey={{key}}&submit=\"\n}",
+    "weight": 0
+  },
+  {
+    "bookSourceComment": "2026-10 实测：搜「史莱姆」15 条，目录 86 章，正文 9000+ 字。",
+    "bookSourceGroup": "📗中文轻小说",
+    "bookSourceName": "轻之文库",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://www.linovel.net",
+    "enabled": true,
+    "enabledCookieJar": false,
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\"}",
+    "ruleBookInfo": {
+      "author": "@css:ol.breadcrumb a[href*=\"/user/info\"]@text##的作品$",
+      "coverUrl": "@css:div.book-cover img@src",
+      "intro": "@css:div.about-text@text",
+      "kind": "@css:div.book-cats a@text",
+      "lastChapter": "@css:div.book-last-update@text##^更新于\\s*",
+      "name": "@css:h1.book-title@text"
+    },
+    "ruleContent": {
+      "content": "@css:div.article-text@html"
+    },
+    "ruleSearch": {
+      "author": "@css:div.book-extra, span.author@text##\\s*[丨/]\\s*(著)?.*$",
+      "bookList": "@css:a.search-book",
+      "bookUrl": "href",
+      "checkKeyWord": "史莱姆",
+      "coverUrl": "@css:img@src",
+      "intro": "@css:div.book-intro, p.intro@text",
+      "kind": "",
+      "name": "@css:div.book-name, div.book-title@text",
+      "wordCount": "@css:span.artist@text",
+      "lastChapter": ""
+    },
+    "ruleToc": {
+      "chapterList": "@css:div.section-list div.chapter a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "searchUrl": "/search/?kw={{key}}&page={{page}}",
+    "weight": 0
+  },
+  {
+    "bookSourceName": "哔哩轻小说",
+    "bookSourceGroup": "📗中文轻小说",
+    "bookSourceComment": "linovelib.com 日系轻小说中文版。搜索是 POST /S6/（内容字段名是 key，不是 searchkey）；正文分页用 /novel/{bid}/{cid}_2.html。",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://www.linovelib.com",
+    "concurrentRate": "1200/1",
+    "bookUrlPattern": "/novel/\\d+\\.html",
+    "enabled": true,
+    "enabledCookieJar": true,
+    "enabledExplore": false,
+    "customOrder": 0,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept-Language": "zh-CN,zh;q=0.9",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Referer": "https://www.linovelib.com/"
+    },
+    "searchUrl": "https://www.linovelib.com/S6/,{\"method\":\"POST\",\"body\":\"key={{key}}\",\"charset\":\"utf-8\"}",
+    "ruleSearch": {
+      "bookList": "@css:div.search-result-list",
+      "name": "@css:h2.tit a@text",
+      "author": "@css:div.bookinfo a!0@text",
+      "bookUrl": "@css:h2.tit a@href",
+      "coverUrl": "@css:img@data-original",
+      "intro": "@css:div.se-result-infos p@text",
+      "checkKeyWord": "史莱姆"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1.book-name@text",
+      "author": "@css:meta[property=\"og:novel:author\"]@content",
+      "coverUrl": "@css:div.book-img img@src",
+      "intro": "@css:div.book-dec@text",
+      "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content"
+    },
+    "ruleToc": {
+      "chapterList": "@css:ul.chapter-list li a",
+      "chapterName": "text",
+      "chapterUrl": "href",
+      "nextTocUrl": ""
+    },
+    "ruleContent": {
+      "content": "@css:#TextContent@html##<center class=\"center-note\">[\\s\\S]*?</center>###",
+      "nextContentUrl": "text.下一页@href"
+    }
+  },
+  {
+    "bookSourceName": "SF轻小说",
+    "bookSourceUrl": "https://book.sfacg.com",
+    "bookSourceType": 0,
+    "bookSourceGroup": "📗中文轻小说",
+    "bookSourceComment": "中文轻小说站。搜索 s.sfacg.com，目录 /MainIndex/，正文 #ChapterBody；名称/作者取 meta keywords（页面里推荐位有同名 class，避免误取）。",
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "searchUrl": "http://s.sfacg.com/?Key={{key}}&S=1&SS=0",
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\", \"Referer\": \"https://book.sfacg.com/\"}",
+    "ruleSearch": {
+      "bookList": "@css:table.comic_cover ul",
+      "name": "@css:strong.F14PX a@text",
+      "author": "",
+      "bookUrl": "@css:strong.F14PX a@href",
+      "coverUrl": "@css:img@src",
+      "intro": "@css:li!1@text",
+      "kind": "",
+      "lastChapter": "",
+      "updateTime": "",
+      "wordCount": "",
+      "checkKeyWord": ""
+    },
+    "ruleBookInfo": {
+      "name": "@css:meta[name=\"keywords\"]@content##^([^,]+),.*$##$1",
+      "author": "@css:meta[name=\"keywords\"]@content##^[^,]+,\\s*##",
+      "intro": "@css:.book-summary!0@text",
+      "coverUrl": "",
+      "kind": "",
+      "lastChapter": "",
+      "wordCount": "",
+      "tocUrl": "@js:(function(){return baseUrl.replace(/\\/$/,\"\")+\"/MainIndex/\";})()"
+    },
+    "ruleToc": {
+      "chapterList": "@css:.catalog-list li",
+      "chapterName": "@css:a@text##^\\s*VIP\\s*##",
+      "chapterUrl": "@css:a@href",
+      "isVolume": "",
+      "isVip": ""
+    },
+    "ruleContent": {
+      "content": "@css:#ChapterBody@html"
+    }
+  },
+  {
+    "bookSourceName": "漢典古籍",
+    "bookSourceUrl": "https://gj.zdic.net",
+    "bookSourceType": 0,
+    "bookSourceGroup": "🏛名著",
+    "bookSourceComment": "中文古籍/名著全文（繁体）。EmpireCMS 搜索走 /e/search/index.php POST keyboard；目录在 div.article-bookdata 的 li，正文 div.article-body。",
+    "enabled": true,
+    "enabledCookieJar": false,
+    "enabledExplore": false,
+    "searchUrl": "https://gj.zdic.net/e/search/index.php,{\"method\":\"POST\",\"body\":\"keyboard={{key}}&show=title&classid=0\"}",
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\", \"Referer\": \"https://gj.zdic.net/\"}",
+    "ruleSearch": {
+      "bookList": "@css:div.article-details",
+      "name": "@css:div.article-title a@text",
+      "author": "",
+      "bookUrl": "@css:div.article-title a@href",
+      "coverUrl": "",
+      "intro": "",
+      "kind": "",
+      "lastChapter": "",
+      "updateTime": "",
+      "wordCount": "",
+      "checkKeyWord": ""
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1!0@text",
+      "author": "",
+      "intro": "@css:meta[name=\"description\"]@content",
+      "coverUrl": "",
+      "kind": "",
+      "lastChapter": "",
+      "wordCount": "",
+      "tocUrl": ""
+    },
+    "ruleToc": {
+      "chapterList": "@css:div.article-bookdata li",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href",
+      "isVolume": "",
+      "isVip": ""
+    },
+    "ruleContent": {
+      "content": "@css:div.article-body@html"
+    }
+  },
+  {
+    "bookSourceName": "カクヨム",
+    "bookSourceGroup": "🗾日文轻小说",
+    "bookSourceUrl": "https://kakuyomu.jp",
+    "bookSourceType": 0,
+    "enabled": true,
+    "searchUrl": "/search?q={{key}}",
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\",\"Accept-Language\":\"ja,en;q=0.8\"}",
+    "ruleSearch": {
+      "bookList": "@css:h3",
+      "name": "@css:a[href^=\"/works/\"]@text",
+      "author": "@css:a[href^=\"/users/\"]@text",
+      "bookUrl": "@css:a[href^=\"/works/\"]@href",
+      "intro": "",
+      "kind": "",
+      "lastChapter": ""
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1 a@text",
+      "author": "@css:a[href^=\"/users/\"]!0@text",
+      "intro": "@js:(function(){var s=result;var a=s.indexOf('id=\"__NEXT_DATA__\"');if(a<0){return '';}a=s.indexOf('>',a)+1;var b=s.indexOf('</script>',a);var st=JSON.parse(s.slice(a,b)).props.pageProps.__APOLLO_STATE__;for(var k in st){var w=st[k];if(k.indexOf('Work:')===0&&w&&w.introduction){return String(w.introduction);}}return '';})()",
+      "kind": "",
+      "lastChapter": "",
+      "coverUrl": "",
+      "tocUrl": ""
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function(){var s=result;var a=s.indexOf('id=\"__NEXT_DATA__\"');if(a<0){throw new Error('no __NEXT_DATA__');}a=s.indexOf('>',a)+1;var b=s.indexOf('</script>',a);var st=JSON.parse(s.slice(a,b)).props.pageProps.__APOLLO_STATE__;var wid=baseUrl.split('/works/')[1];wid=wid?wid.split('/')[0]:'';var order=[];var k;var i;for(k in st){if(k.indexOf('TableOfContentsChapter:')===0){var u=st[k].episodeUnions||[];for(i=0;i<u.length;i++){order.push(u[i].__ref);}}}if(order.length===0){for(k in st){if(k.indexOf('Episode:')===0){order.push(k);}}}var out=[];for(i=0;i<order.length;i++){var e=st[order[i]];if(!e||!e.id){continue;}var t=String(e.title||'');t=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');out.push('<a href=\"/works/'+wid+'/episodes/'+e.id+'\">'+t+'</a>');}return out;})()",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href",
+      "isVip": ""
+    },
+    "ruleContent": {
+      "content": "@css:div.widget-episodeBody p@text"
+    },
+    "bookSourceComment": "日本轻小说（カクヨム / KADOKAWA）。目录藏在页面 __NEXT_DATA__ 的 Apollo 缓存里，规则用 @js 解析 TableOfContentsChapter 顺序后拼 <a>，正文取 widget-episodeBody 的段落。"
+  },
+  {
+    "bookSourceUrl": "https://standardebooks.org",
+    "bookSourceName": "Standard Ebooks",
+    "bookSourceGroup": "🏛名著",
+    "bookSourceType": 0,
+    "bookSourceComment": "英文公版名著（Standard Ebooks，服务端渲染、无反爬）。搜索 /ebooks?query=；详情页取 h1 书名与 section#description 简介；目录在 bookUrl + \"/text\"；正文取 main p。整本英文书会被阅读器自动分页。",
+    "enabled": true,
+    "enabledCookieJar": true,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    },
+    "searchUrl": "/ebooks?query={{key}}",
+    "ruleSearch": {
+      "bookList": "@css:main ol li",
+      "name": "@css:p!0@text",
+      "author": "@css:p.author@text",
+      "bookUrl": "@css:a[property=\"schema:url\"]!0@href",
+      "coverUrl": "@css:img@src",
+      "intro": "@js:'Standard Ebooks 公版书（英文）'"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1@text",
+      "author": "@css:hgroup p@text",
+      "intro": "@css:section#description p@text",
+      "coverUrl": "@css:main img@src",
+      "tocUrl": "@js:baseUrl + '/text'"
+    },
+    "ruleToc": {
+      "chapterList": "@css:main ol li a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "@css:main p@html"
+    }
+  },
+  {
+    "bookSourceName": "包子漫画",
+    "bookSourceGroup": "🧩漫画",
+    "bookSourceType": 2,
+    "bookSourceUrl": "https://baozimh.org",
+    "bookSourceComment": "包子漫画 baozimh.org：详情/目录/图片均走 v2.apikk.top 接口（mid 取自 /chapterlist 页面的 data-mid）",
+    "enabled": true,
+    "enabledExplore": false,
+    "enabledCookieJar": true,
+    "customOrder": 0,
+    "weight": 0,
+    "lastUpdateTime": 0,
+    "respondTime": 180000,
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\", \"Referer\": \"https://baozimh.org/\"}",
+    "loginUrl": "",
+    "loginCheckJs": "",
+    "bookUrlPattern": "",
+    "searchUrl": "https://baozimh.org/s?q={{key}}",
+    "ruleSearch": {
+      "bookList": "@css:div.cardlist > div",
+      "name": "@css:h3@text",
+      "author": "",
+      "intro": "",
+      "kind": "",
+      "lastChapter": "",
+      "bookUrl": "@css:a@href",
+      "coverUrl": "@css:img@src"
+    },
+    "ruleBookInfo": {
+      "name": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.title || '';\n})()",
+      "author": "",
+      "intro": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.desc || '';\n})()",
+      "kind": "",
+      "lastChapter": "",
+      "coverUrl": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.cover || '';\n})()",
+      "tocUrl": "@js:'https://baozimh.org/chapterlist/' + baseUrl.split('/').pop()",
+      "wordCount": ""
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nvar list = d.chapters || [];\nvar out = [];\nfor (var i = 0; i < list.length; i++) {\n  var a = list[i].attributes || {};\n  if (!a.slug) { continue; }\n  out.push('<a href=\"/manga/' + slug + '/' + a.slug + '\">' + (a.title || ('c' + i)) + '</a>');\n}\nreturn out;\n})()",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href"
+    },
+    "ruleContent": {
+      "content": "@js:(function () {\nvar tag = /<[^>]*id=\"chapterContent\"[^>]*>/.exec(result);\nvar ms = tag ? /data-ms=\"(\\d+)\"/.exec(tag[0]) : null;\nvar cs = tag ? /data-cs=\"(\\d+)\"/.exec(tag[0]) : null;\nif (!ms || !cs) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/v2/chapter/getinfo?m=' + ms[1] + '&c=' + cs[1]);\nvar o = JSON.parse(raw);\nvar info = (o && o.data && o.data.info) || {};\nvar box = info.images || {};\nvar payload = box.images;\nvar line = box.line;\nif (!payload) { return ''; }\nif (!window.__cimg) {\n  var dec = java.ajax('https://baozimh.org/assets/runtime/chapter-decoder.js');\n  new Function(dec)();\n}\nreturn window.__cimg.r(payload).then(function (list) {\n  var host = (line === 2) ? 'https://c-nd2-1.6wm.top' : 'https://c-nd3-1.6wm.top';\n  var out = [];\n  for (var i = 0; i < list.length; i++) { out.push(host + list[i].url); }\n  return out;\n});\n})()",
+      "nextContentUrl": "",
+      "imageStyle": ""
+    },
+    "ruleExplore": {}
+  },
+  {
+    "bookSourceName": "可阅文学网",
+    "bookSourceGroup": "名著",
+    "bookSourceComment": "kepub.net 可阅文学网（公版书 + 原创）。搜索走前端接口 GET /search/all，返回 JSON，必须带 Accept-Language: zh-CN 否则中文关键字返回 0 条。书页自带完整目录（ul.chapter-list），正文在 #content（段落用 <br><br> 分隔）。付费章节只放出开头一小段。",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://www.kepub.net",
+    "concurrentRate": "1200/1",
+    "bookUrlPattern": "/book/\\d+",
+    "enabled": true,
+    "enabledCookieJar": true,
+    "enabledExplore": false,
+    "customOrder": 0,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept-Language": "zh-CN,zh;q=0.9",
+      "Accept": "application/json, text/plain, */*",
+      "X-Requested-With": "XMLHttpRequest"
+    },
+    "searchUrl": "https://www.kepub.net/search/all?keyword={{key}}&type=all&page={{page}}&limit=20",
+    "ruleSearch": {
+      "bookList": "@js:(function(){var d=JSON.parse(result);var L=(d&&d.data&&d.data.books&&d.data.books.list)||[];var o=[];for(var i=0;i<L.length;i++){var b=L[i];var n=String(b.bookName||'').replace(/[<>&\"]/g,'');var a=String(b.authorName||'').replace(/[<>&\"]/g,'');var br=String(b.bookBrief||'').replace(/[<>&\"]/g,'');o.push('<div class=\"kpb\"><a href=\"/book/'+b.bookNo+'\"><h3>'+n+'</h3><img src=\"'+(b.coverImg||'')+'\"><span class=\"au\">'+a+'</span><span class=\"kw\">'+br+'</span><span class=\"cc\">'+(b.chapterCount||0)+'</span></a></div>');}return o;})()",
+      "name": "@css:h3@text",
+      "author": "@css:span.au@text",
+      "bookUrl": "@css:a@href",
+      "coverUrl": "@css:img@src",
+      "intro": "@css:span.kw@text",
+      "wordCount": "@css:span.cc@text",
+      "checkKeyWord": "山雨"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1@text",
+      "author": "@css:meta[property=\"og:novel:author\"]@content",
+      "coverUrl": "@css:meta[property=\"og:image\"]@content",
+      "intro": "@css:meta[property=\"og:description\"]@content",
+      "kind": "@css:meta[property=\"og:novel:category\"]@content",
+      "lastChapter": "@css:meta[property=\"og:novel:latest_chapter_name\"]@content",
+      "updateTime": "@css:meta[property=\"og:novel:update_time\"]@content",
+      "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content"
+    },
+    "ruleToc": {
+      "chapterList": "@css:ul.chapter-list li a",
+      "chapterName": "text",
+      "chapterUrl": "href",
+      "nextTocUrl": ""
+    },
+    "ruleContent": {
+      "content": "@css:#content@html"
+    }
+  },
+  {
+    "bookSourceName": "麦归文学",
+    "bookSourceGroup": "📚出版物",
+    "bookSourceComment": "maiguiread.com 麦归文学（出版物在线阅读）。搜索是 Nuxt SSR 页面 /search?q=关键词（注意参数是 q，不是 keyword），直接出 HTML 结果。书页只有「即刻阅读」，目录要调公开接口 /api/public/chapter/list/{nid}（一次性返回全部章节，含正文，体积较大）。章节页 SSR 已带正文 div.chapter-content。",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://www.maiguiread.com",
+    "concurrentRate": "1200/1",
+    "bookUrlPattern": "/novel/[A-Za-z0-9]+",
+    "enabled": true,
+    "enabledExplore": false,
+    "customOrder": 0,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+      "Referer": "https://www.maiguiread.com/"
+    },
+    "searchUrl": "/search?q={{key}}",
+    "ruleSearch": {
+      "bookList": "@css:ul.sr-list li.sr-row",
+      "name": "@css:h2.sr-book-title a@text",
+      "author": "@css:dl.sr-meta dd!0@text",
+      "bookUrl": "@css:h2.sr-book-title a@href",
+      "coverUrl": "@css:div.sr-cover img@src",
+      "intro": "@css:p.sr-desc@text",
+      "checkKeyWord": "解忧"
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1.book-name@text",
+      "author": "@css:div.info-meta span.meta-strong!0@text",
+      "coverUrl": "@css:div.info-cover img@src",
+      "intro": "@css:div.info-desc p.desc-text@text",
+      "kind": "@css:div.info-meta div.tags-row span.meta-link!1@text",
+      "tocUrl": "@js:'https://www.maiguiread.com/api/public/chapter/list/' + String(baseUrl).split('/').pop()"
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function(){var d=JSON.parse(result||'{}');var L=(d&&d.data)||[];var nid=String(baseUrl||'').split('/').pop();if(nid.indexOf('?')>=0){nid=nid.split('?')[0];}var o=[];for(var i=0;i<L.length;i++){var c=L[i];var t=String(c.title||'').replace(/[<>]/g,'');o.push('<a href=\"/novel/'+nid+'/chapter/'+c.cid+'\">'+t+'</a>');}return o;})()",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href",
+      "nextTocUrl": ""
+    },
+    "ruleContent": {
+      "content": "@css:div.chapter-content@html"
+    }
+  }
+]

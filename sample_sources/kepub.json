@@ -1,0 +1,49 @@
+{
+  "bookSourceName": "可阅文学网",
+  "bookSourceGroup": "名著",
+  "bookSourceComment": "kepub.net 可阅文学网（公版书 + 原创）。搜索走前端接口 GET /search/all，返回 JSON，必须带 Accept-Language: zh-CN 否则中文关键字返回 0 条。书页自带完整目录（ul.chapter-list），正文在 #content（段落用 <br><br> 分隔）。付费章节只放出开头一小段。",
+  "bookSourceType": 0,
+  "bookSourceUrl": "https://www.kepub.net",
+  "concurrentRate": "1200/1",
+  "bookUrlPattern": "/book/\\d+",
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": false,
+  "customOrder": 0,
+  "header": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept": "application/json, text/plain, */*",
+    "X-Requested-With": "XMLHttpRequest"
+  },
+  "searchUrl": "https://www.kepub.net/search/all?keyword={{key}}&type=all&page={{page}}&limit=20",
+  "ruleSearch": {
+    "bookList": "@js:(function(){var d=JSON.parse(result);var L=(d&&d.data&&d.data.books&&d.data.books.list)||[];var o=[];for(var i=0;i<L.length;i++){var b=L[i];var n=String(b.bookName||'').replace(/[<>&\"]/g,'');var a=String(b.authorName||'').replace(/[<>&\"]/g,'');var br=String(b.bookBrief||'').replace(/[<>&\"]/g,'');o.push('<div class=\"kpb\"><a href=\"/book/'+b.bookNo+'\"><h3>'+n+'</h3><img src=\"'+(b.coverImg||'')+'\"><span class=\"au\">'+a+'</span><span class=\"kw\">'+br+'</span><span class=\"cc\">'+(b.chapterCount||0)+'</span></a></div>');}return o;})()",
+    "name": "@css:h3@text",
+    "author": "@css:span.au@text",
+    "bookUrl": "@css:a@href",
+    "coverUrl": "@css:img@src",
+    "intro": "@css:span.kw@text",
+    "wordCount": "@css:span.cc@text",
+    "checkKeyWord": "山雨"
+  },
+  "ruleBookInfo": {
+    "name": "@css:h1@text",
+    "author": "@css:meta[property=\"og:novel:author\"]@content",
+    "coverUrl": "@css:meta[property=\"og:image\"]@content",
+    "intro": "@css:meta[property=\"og:description\"]@content",
+    "kind": "@css:meta[property=\"og:novel:category\"]@content",
+    "lastChapter": "@css:meta[property=\"og:novel:latest_chapter_name\"]@content",
+    "updateTime": "@css:meta[property=\"og:novel:update_time\"]@content",
+    "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content"
+  },
+  "ruleToc": {
+    "chapterList": "@css:ul.chapter-list li a",
+    "chapterName": "text",
+    "chapterUrl": "href",
+    "nextTocUrl": ""
+  },
+  "ruleContent": {
+    "content": "@css:#content@html"
+  }
+}

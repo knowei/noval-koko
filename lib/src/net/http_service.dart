@@ -1,0 +1,247 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:cookie_jar/cookie_jar.dart';
+
+import '../core/charset_util.dart';
+import '../core/rule_exception.dart';
+import 'rate_limiter.dart';
+
+/// 一次 HTTP 请求的结果。
+class HttpResult {
+  const HttpResult({
+    required this.body,
+    required this.url,
+    required this.statusCode,
+  });
+
+  final String body;
+
+  /// 重定向之后的最终地址（解析相对链接时要用它）。
+  final String url;
+  final int statusCode;
+
+  bool get isOk => statusCode >= 200 && statusCode < 400;
+}
+
+/// 统一的网络层：自动处理编码、Cookie、重定向、超时与「按域名限速」。
+class HttpService {
+  HttpService({CookieJar? cookieJar, RateLimiter? limiter, this.timeout})
+      : limiter = limiter ?? RateLimiter() {
+    _dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 15),
+        followRedirects: true,
+        maxRedirects: 5,
+        responseType: ResponseType.bytes,
+        validateStatus: (int? code) => code != null && code < 500,
+        headers: <String, String>{
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        },
+      ),
+    );
+    _jar = cookieJar ?? CookieJar();
+    _dio.interceptors.add(CookieManager(_jar));
+  }
+
+  late final Dio _dio;
+  late final CookieJar _jar;
+
+  /// 按域名限速（书源的 `concurrentRate` 会通过它生效）。
+  final RateLimiter limiter;
+
+  /// 整体超时（连接 + 接收）。为 null 时用 Dio 默认值（15s/30s）。
+  /// 批量体检书源时会设成几秒，避免一个死站拖住整轮扫描。
+  final Duration? timeout;
+
+  CookieJar get cookieJar => _jar;
+
+  Future<HttpResult> request(
+    String url, {
+    String method = 'GET',
+    Map<String, String>? headers,
+    String? body,
+    Map<String, dynamic>? query,
+    String? charset,
+  }) async {
+    final Uri uri;
+    try {
+      uri = Uri.parse(url);
+    } catch (e) {
+      throw RuleException('URL 非法：$url', detail: e.toString());
+    }
+    if (!uri.hasScheme) {
+      throw RuleException('URL 缺少协议：$url');
+    }
+
+    return limiter.run(
+      uri.host,
+      () => _send(uri, method, headers, body, query, charset),
+    );
+  }
+
+  Future<HttpResult> _send(
+    Uri uri,
+    String method,
+    Map<String, String>? headers,
+    String? body,
+    Map<String, dynamic>? query,
+    String? charset,
+  ) async {
+    // 429/503 是纯节流信号，等一会儿重试就能过；别的错误不重试。
+    const int maxAttempts = 3;
+    for (int attempt = 1;; attempt++) {
+      try {
+        final HttpResult result =
+            await _sendOnce(uri, method, headers, body, query, charset);
+        final int code = result.statusCode;
+        if ((code == 429 || code == 503) && attempt < maxAttempts) {
+          await Future<void>.delayed(Duration(milliseconds: 1200 * attempt));
+          continue;
+        }
+        return result;
+      } on RuleException catch (e) {
+        final bool throttled =
+            e.message.contains('429') || e.message.contains('503');
+        if (throttled && attempt < maxAttempts) {
+          await Future<void>.delayed(Duration(milliseconds: 1200 * attempt));
+          continue;
+        }
+        rethrow;
+      }
+    }
+  }
+
+  Future<HttpResult> _sendOnce(
+    Uri uri,
+    String method,
+    Map<String, String>? headers,
+    String? body,
+    Map<String, dynamic>? query,
+    String? charset,
+  ) async {
+    try {
+      final bool isPost = method.toUpperCase() == 'POST';
+      // GBK 站点提交中文表单必须按源声明字符集编码，否则服务端搜不到结果
+      final Uint8List? bodyBytes =
+          isPost && body != null ? CharsetUtil.encodeText(body, charset) : null;
+      final Response<List<int>> resp = timeout == null
+          ? await _dio.request<List<int>>(
+              uri.toString(),
+              data: !isPost ? null : (bodyBytes ?? body),
+              queryParameters: query,
+              options: _options(method, headers, charset, isPost, bodyBytes),
+            )
+          : await _dio
+              .request<List<int>>(
+                uri.toString(),
+                data: !isPost ? null : (bodyBytes ?? body),
+                queryParameters: query,
+                options: _options(method, headers, charset, isPost, bodyBytes),
+              )
+              .timeout(timeout!);
+
+      final List<int> data = resp.data ?? const <int>[];
+      final String? contentType = resp.headers.value('content-type');
+      final String text = CharsetUtil.decode(
+        Uint8List.fromList(data),
+        declared: charset ?? CharsetUtil.charsetFromContentType(contentType),
+      );
+
+      return HttpResult(
+        body: text,
+        url: resp.realUri.toString(),
+        statusCode: resp.statusCode ?? 0,
+      );
+    } on TimeoutException {
+      throw RuleException(
+        '网络请求失败：超时（${timeout!.inSeconds}s）',
+        detail: uri.toString(),
+      );
+    } on DioException catch (e) {
+      throw RuleException(
+        '网络请求失败：${_describe(e)}',
+        detail: '${e.requestOptions.uri}',
+      );
+    }
+  }
+
+  Options _options(
+    String method,
+    Map<String, String>? headers,
+    String? charset,
+    bool isPost,
+    Uint8List? bodyBytes,
+  ) {
+    final String? contentType = !isPost
+        ? null
+        : (headers?['Content-Type'] ??
+            (charset != null
+                ? 'application/x-www-form-urlencoded; charset=$charset'
+                : 'application/x-www-form-urlencoded'));
+    return Options(
+      method: method.toUpperCase(),
+      headers: isPost && charset != null && bodyBytes != null
+          ? <String, String>{
+              ...?headers,
+              'Content-Type':
+                  headers?['Content-Type'] ?? 'application/x-www-form-urlencoded; charset=$charset',
+            }
+          : headers,
+      contentType: contentType,
+    );
+  }
+
+  String _describe(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+        return '连接超时';
+      case DioExceptionType.receiveTimeout:
+        return '读取超时';
+      case DioExceptionType.sendTimeout:
+        return '发送超时';
+      case DioExceptionType.connectionError:
+        return '连接失败';
+      case DioExceptionType.badCertificate:
+        return '证书错误';
+      case DioExceptionType.cancel:
+        return '已取消';
+      case DioExceptionType.badResponse:
+        return 'HTTP ${e.response?.statusCode}';
+      default:
+        return e.message ?? '未知错误';
+    }
+  }
+
+  /// 下载图片字节（漫画用）。
+  Future<Uint8List> imageBytes(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    final Uri uri = Uri.parse(url);
+    return limiter.run(uri.host, () async {
+      final Response<List<int>> resp = await _dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+          validateStatus: (int? code) => code != null && code < 400,
+        ),
+      );
+      return Uint8List.fromList(resp.data ?? const <int>[]);
+    });
+  }
+
+  void dispose() {
+    _dio.close(force: true);
+  }
+}

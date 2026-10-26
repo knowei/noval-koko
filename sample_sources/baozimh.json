@@ -1,0 +1,50 @@
+{
+  "bookSourceName": "包子漫画",
+  "bookSourceGroup": "🧩漫画",
+  "bookSourceType": 2,
+  "bookSourceUrl": "https://baozimh.org",
+  "bookSourceComment": "包子漫画 baozimh.org：详情/目录/图片均走 v2.apikk.top 接口（mid 取自 /chapterlist 页面的 data-mid）",
+  "enabled": true,
+  "enabledExplore": false,
+  "enabledCookieJar": true,
+  "customOrder": 0,
+  "weight": 0,
+  "lastUpdateTime": 0,
+  "respondTime": 180000,
+  "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\", \"Referer\": \"https://baozimh.org/\"}",
+  "loginUrl": "",
+  "loginCheckJs": "",
+  "bookUrlPattern": "",
+  "searchUrl": "https://baozimh.org/s?q={{key}}",
+  "ruleSearch": {
+    "bookList": "@css:div.cardlist > div",
+    "name": "@css:h3@text",
+    "author": "",
+    "intro": "",
+    "kind": "",
+    "lastChapter": "",
+    "bookUrl": "@css:a@href",
+    "coverUrl": "@css:img@src"
+  },
+  "ruleBookInfo": {
+    "name": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.title || '';\n})()",
+    "author": "",
+    "intro": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.desc || '';\n})()",
+    "kind": "",
+    "lastChapter": "",
+    "coverUrl": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nreturn d.cover || '';\n})()",
+    "tocUrl": "@js:'https://baozimh.org/chapterlist/' + baseUrl.split('/').pop()",
+    "wordCount": ""
+  },
+  "ruleToc": {
+    "chapterList": "@js:(function () {\nvar slug = baseUrl.split('/').pop();\nvar page = java.ajax('https://baozimh.org/chapterlist/' + slug);\nvar mm = /data-mid=\"(\\d+)\"/.exec(page);\nif (!mm) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/manga/get?mid=' + mm[1] + '&mode=all');\nvar o = JSON.parse(raw);\nvar d = (o && o.data) || {};\nvar list = d.chapters || [];\nvar out = [];\nfor (var i = 0; i < list.length; i++) {\n  var a = list[i].attributes || {};\n  if (!a.slug) { continue; }\n  out.push('<a href=\"/manga/' + slug + '/' + a.slug + '\">' + (a.title || ('c' + i)) + '</a>');\n}\nreturn out;\n})()",
+    "chapterName": "@css:a@text",
+    "chapterUrl": "@css:a@href"
+  },
+  "ruleContent": {
+    "content": "@js:(function () {\nvar tag = /<[^>]*id=\"chapterContent\"[^>]*>/.exec(result);\nvar ms = tag ? /data-ms=\"(\\d+)\"/.exec(tag[0]) : null;\nvar cs = tag ? /data-cs=\"(\\d+)\"/.exec(tag[0]) : null;\nif (!ms || !cs) { return ''; }\nvar raw = java.ajax('https://v2.apikk.top/api/v2/chapter/getinfo?m=' + ms[1] + '&c=' + cs[1]);\nvar o = JSON.parse(raw);\nvar info = (o && o.data && o.data.info) || {};\nvar box = info.images || {};\nvar payload = box.images;\nvar line = box.line;\nif (!payload) { return ''; }\nif (!window.__cimg) {\n  var dec = java.ajax('https://baozimh.org/assets/runtime/chapter-decoder.js');\n  new Function(dec)();\n}\nreturn window.__cimg.r(payload).then(function (list) {\n  var host = (line === 2) ? 'https://c-nd2-1.6wm.top' : 'https://c-nd3-1.6wm.top';\n  var out = [];\n  for (var i = 0; i < list.length; i++) { out.push(host + list[i].url); }\n  return out;\n});\n})()",
+    "nextContentUrl": "",
+    "imageStyle": ""
+  },
+  "ruleExplore": {}
+}

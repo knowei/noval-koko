@@ -1,0 +1,70 @@
+[
+  {
+    "bookSourceUrl": "http://127.0.0.1:8787",
+    "bookSourceName": "本地假站·小说",
+    "bookSourceType": 0,
+    "bookSourceGroup": "本地测试",
+    "bookSourceComment": "配合 tool/mock_site.dart 使用，验证小说链路",
+    "enabled": true,
+    "searchUrl": "/search?key={{key}}",
+    "ruleSearch": {
+      "bookList": "class.result",
+      "name": "class.name@text",
+      "author": "class.author@text",
+      "kind": "class.kind@text",
+      "intro": "class.intro@text",
+      "coverUrl": "class.cover@src",
+      "bookUrl": "class.name@href",
+      "lastChapter": "class.last@text"
+    },
+    "ruleBookInfo": {
+      "name": "class.bookname@text",
+      "author": "class.author@text",
+      "intro": "class.intro@text",
+      "coverUrl": "class.cover@src",
+      "tocUrl": "class.toc@href"
+    },
+    "ruleToc": {
+      "chapterList": "id.list@a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "id.content@html",
+      "nextContentUrl": "id.next@href",
+      "replaceRegex": "<br\\s*/?>##\\n"
+    }
+  },
+  {
+    "bookSourceUrl": "http://127.0.0.1:8787/comic",
+    "bookSourceName": "本地假站·漫画",
+    "bookSourceType": 2,
+    "bookSourceGroup": "本地测试",
+    "bookSourceComment": "配合 tool/mock_site.dart 使用，验证漫画链路",
+    "enabled": true,
+    "searchUrl": "/search?key={{key}}&comic=1",
+    "ruleSearch": {
+      "bookList": "class.result",
+      "name": "class.name@text",
+      "author": "class.author@text",
+      "intro": "class.intro@text",
+      "coverUrl": "class.cover@src",
+      "bookUrl": "class.name@href"
+    },
+    "ruleBookInfo": {
+      "name": "class.bookname@text",
+      "author": "class.author@text",
+      "intro": "class.intro@text",
+      "coverUrl": "class.cover@src",
+      "tocUrl": "class.toc@href"
+    },
+    "ruleToc": {
+      "chapterList": "id.list@a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "class.pic@src"
+    }
+  }
+]

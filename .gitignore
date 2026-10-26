@@ -1,0 +1,74 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# 书源体检的抓取缓存（约 35MB，可用 tool/fetch_sources.ps1 重新生成）
+/tool/scan_raw/
+/tool/*_log.txt
+
+# 探针/抓取产生的临时文件（脚本重跑即可再生成，不入库）
+/tool/*.html
+/tool/*.json
+/tool/*.txt
+/tool/*.js
+/tool/*.db
+/tool/*.bin
+/tool/_tmp_peek.py
+/tool/kp_js_js
+/tool/ln_probe/
+/tool/local_test/
+
+# Android 本地配置与构建缓存
+/android/local.properties
+/android/.gradle/
+/android/.kotlin/
+/android/app/build/
+/android/build/
+
+# 桌面端构建产物（windows/.gitignore 已忽略 x64/ 与 ephemeral/，这里兜底）
+/windows/flutter/ephemeral/
