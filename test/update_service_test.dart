@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noval/src/core/update_service.dart';
 import 'package:noval/src/core/version.dart';
@@ -18,9 +20,17 @@ void main() {
       expect(UpdateService.isNewer('', '0.2.0'), isFalse);
     });
 
-    test('version.dart 与当前包版本一致', () {
-      expect(kAppVersion, '0.2.0');
-      expect(kAppBuildNumber, greaterThanOrEqualTo(1));
+    // 不再硬编码版本号：直接和 pubspec.yaml 比对，
+    // 这样每次发版只改 pubspec + 跑 gen_version 就够，测试不会因为升版本挂掉。
+    test('version.dart 与 pubspec.yaml 一致', () {
+      final String pubspec = File('pubspec.yaml').readAsStringSync();
+      final Match? m = RegExp(
+        r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)',
+        multiLine: true,
+      ).firstMatch(pubspec);
+      expect(m, isNotNull, reason: 'pubspec.yaml 里应有 version: x.y.z+n');
+      expect(kAppVersion, m!.group(1));
+      expect(kAppBuildNumber, int.parse(m.group(2)!));
     });
   });
 }

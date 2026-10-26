@@ -2,7 +2,7 @@
 // ignore_for_file: constant_identifier_names
 
 /// 应用版本号（对应 pubspec.yaml 的 `version:` 前半段）。
-const String kAppVersion = '0.2.0';
+const String kAppVersion = '0.3.0';
 
 /// 构建号（对应 `version:` 的 `+` 之后）。
-const int kAppBuildNumber = 2;
+const int kAppBuildNumber = 3;

@@ -11,6 +11,11 @@
 
 技术栈：Flutter（Windows 桌面 + Android）/ Dart 3 / QuickJS（flutter_js）/ sqflite / provider。
 
+> **名字与图标**：中文名「墨町」，拉丁名 Moting（`Moting reader`），
+> 内部代号 `noval`（包名 `com.noval.noval`、可执行文件 `noval.exe`）。
+> 图标由 `python tool/make_icon.py` 生成 —— 墨绿底 + 米白翻书 + 沙色书签，
+> 一次产出 Android 全密度 mipmap / 自适应图标前景 / Windows `app_icon.ico`。
+
 ```bash
 git clone https://github.com/knowei/noval-koko.git
 cd noval-koko
@@ -92,18 +97,23 @@ git push origin v0.2.0        # 触发构建，产物出现在 Releases 页面
    `lib/src/core/version.dart`（App 内更新靠它比对 tag）；
 3. `flutter build apk --release --split-per-abi` —— 按 ABI 拆分，
    **单包 20~25MB**（通用包 60MB+，split 后小一半以上）；
+   再补一个 `flutter build apk --release` 出的通用包当兜底；
    Windows 任务另外打一个 `noval-<ver>-windows-x64.zip`；
 4. `softprops/action-gh-release` 上传全部产物并写 Release notes。
 
 产物命名（App 内更新就是照这个名字挑包的）：
 
 ```
-noval-v0.2.0-arm64-v8a.apk       ← 现代手机用这个（默认优先下载）
-noval-v0.2.0-armeabi-v7a.apk     ← 老 32 位设备
-noval-v0.2.0-x86_64.apk          ← 模拟器
-noval-v0.2.0-windows-x64.zip     ← Windows 桌面版
+noval-v0.3.0-arm64-v8a.apk       ← 手机装这个（99% 的安卓机都是 arm64）
+noval-v0.3.0-armeabi-v7a.apk     ← 只给很老的 32 位设备
+noval-v0.3.0-x86_64.apk          ← 只给模拟器，手机上装不上
+noval-v0.3.0-universal.apk       ← 不确定装哪个时用这个，一定装得上
+noval-v0.3.0-windows-x64.zip     ← Windows 桌面版
 noval-latest-arm64-v8a.apk       ← 永远指向最新那版 arm64
 ```
+
+> **装不上先看这里**：手机上装 `x86_64` 那份会报「应用未安装」——
+> 那是 PC 模拟器的架构，手机是 arm64。装 `arm64-v8a` 或 `universal`。
 
 不需要额外密钥：`GITHUB_TOKEN` 由 Actions 自动注入。**唯一的仓库设置**是
 `Settings → Actions → General → Workflow permissions` 选

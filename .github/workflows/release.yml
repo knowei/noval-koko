@@ -57,19 +57,24 @@ jobs:
       - name: flutter build apk --release --split-per-abi
         run: flutter build apk --release --split-per-abi
 
+      # 再出一个通用包：手机上分不清自己该装哪个时用它（装不错）
+      - name: flutter build apk --release（universal）
+        run: flutter build apk --release
+
       - name: Collect artifact
         run: |
           set -e
           mkdir -p dist
           VER="${GITHUB_REF_NAME}"
           if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VER="0.0.0-manual-${GITHUB_RUN_NUMBER}"; fi
-          for f in build/app/outputs/flutter-apk/*-release.apk; do
+          for f in build/app/outputs/flutter-apk/app-*-release.apk; do
             b=$(basename "$f" .apk)          # app-arm64-v8a-release
             abi=${b#app-}; abi=${abi%-release}
             cp "$f" "dist/noval-${VER}-${abi}.apk"
           done
           # App 内更新默认优先下载 arm64-v8a 这份
           cp "dist/noval-${VER}-arm64-v8a.apk" dist/noval-latest-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/noval-${VER}-universal.apk"
           ls -lh dist
 
       - name: Upload workflow artifact
