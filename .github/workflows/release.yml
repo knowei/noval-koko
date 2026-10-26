@@ -1,7 +1,7 @@
 name: release
 
 # 触发方式：
-#   1) 推一个 v* tag（推荐）：git tag v0.1.0 && git push origin v0.1.0
+#   1) 推一个 v* tag（推荐）：git tag v0.2.0 && git push origin v0.2.0
 #   2) 手动：Actions 页面 → release → Run workflow（只上传 artifact，不发 Release）
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   apk:
-    name: build apk
+    name: build apk（split-per-abi）
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -43,24 +43,33 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      # 版本号从 pubspec 同步到 lib/src/core/version.dart（App 内更新用它比对 tag）
+      - name: 生成 version.dart
+        run: dart run tool/gen_version.dart
+
       - name: flutter analyze
         run: flutter analyze
 
       - name: flutter test（单元 + 假站点端到端，不联网）
         run: flutter test
 
-      - name: flutter build apk --release
-        run: flutter build apk --release
+      # 按 ABI 拆分：单包 20~25MB，比通用包（60MB+）小一半以上
+      - name: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi
 
       - name: Collect artifact
         run: |
+          set -e
           mkdir -p dist
-          APK=build/app/outputs/flutter-apk/app-release.apk
-          test -f "$APK"
-          NAME="noval-${GITHUB_REF_NAME//\//-}"
-          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then NAME="noval-manual-${GITHUB_RUN_NUMBER}"; fi
-          cp "$APK" "dist/${NAME}.apk"
-          cp "$APK" dist/noval-latest.apk
+          VER="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then VER="0.0.0-manual-${GITHUB_RUN_NUMBER}"; fi
+          for f in build/app/outputs/flutter-apk/*-release.apk; do
+            b=$(basename "$f" .apk)          # app-arm64-v8a-release
+            abi=${b#app-}; abi=${abi%-release}
+            cp "$f" "dist/noval-${VER}-${abi}.apk"
+          done
+          # App 内更新默认优先下载 arm64-v8a 这份
+          cp "dist/noval-${VER}-arm64-v8a.apk" dist/noval-latest-arm64-v8a.apk
           ls -lh dist
 
       - name: Upload workflow artifact
@@ -85,3 +94,51 @@ jobs:
       # 再加 KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD，
       # 在 build 之前解码成 android/app/upload.jks 并改写 signingConfigs。
       # 不配也行：Flutter 模板的 release 默认用 debug key 签名（自己装来用足够了）。
+
+  windows:
+    name: build windows（zip）
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: 生成 version.dart
+        run: dart run tool/gen_version.dart
+
+      - name: flutter build windows --release
+        run: flutter build windows --release
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") { $ver = "manual-${{ github.run_number }}" }
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "noval-$ver-windows-x64.zip" -Force
+          Get-ChildItem "noval-$ver-windows-x64.zip" | Select-Object Name, Length
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noval-windows
+          path: noval-*-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish to Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: noval-*-windows-x64.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

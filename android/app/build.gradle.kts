@@ -47,3 +47,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 应用内更新需要 FileProvider（androidx.core）
+    implementation("androidx.core:core:1.13.1")
+}
+

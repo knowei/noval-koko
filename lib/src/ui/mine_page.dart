@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../core/version.dart';
 import '../model/shelf_book.dart';
 import 'source_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_sheet.dart';
 import 'motion.dart';
+import 'update_entry.dart';
 import 'widgets.dart';
 
 /// 「我的」：书源管理、主题外观、关于，都收在这一页里。
@@ -111,15 +113,21 @@ class MinePage extends StatelessWidget {
           const SectionHeader(title: '关于'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpace.page),
-            child: AppCard(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpace.lg, vertical: AppSpace.md),
-              onTap: () => _showAbout(context),
-              child: const _Entry(
-                icon: Icons.info_outline,
-                title: '关于墨町',
-                subtitle: '0.1.0 · 自用阅读器',
-              ),
+            child: Column(
+              children: <Widget>[
+                const UpdateEntry(),
+                const SizedBox(height: AppSpace.md),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.lg, vertical: AppSpace.md),
+                  onTap: () => _showAbout(context),
+                  child: _Entry(
+                    icon: Icons.info_outline,
+                    title: '关于墨町',
+                    subtitle: 'v$kAppVersion · 自用阅读器',
+                  ),
+                ),
+              ],
             ),
           ),
         ],

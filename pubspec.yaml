@@ -1,7 +1,7 @@
 name: noval
 description: "规则驱动的小说 + 漫画阅读器"
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ^3.13.0

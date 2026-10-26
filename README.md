@@ -78,23 +78,49 @@ flutter build apk --debug        # 产物 build\app\outputs\flutter-apk\app-debu
 ### 自动发版：打 tag 就出 APK 到 Release
 
 `.github/workflows/release.yml`：推一个 `v*` tag（或在 Actions 页面手动 `Run workflow`）
-就会在 GitHub 的 runner 上构建 release APK，并自动挂到对应的 Release 里。
+就会在 GitHub 的 runner 上构建 release 产物，并自动挂到对应的 Release 里。
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0        # 触发构建，产物出现在 Releases 页面
+git tag v0.2.0
+git push origin v0.2.0        # 触发构建，产物出现在 Releases 页面
 ```
 
-工作流做了三件事：
+工作流做四件事：
 
 1. `subosito/flutter-action` 装 Flutter（stable，带 pub 缓存）；
-2. `flutter build apk --release`（签名用的是 runner 临时 debug key，只是给你自己装来用；
-   要正式签名就在 Secrets 里配 keystore，见工作流注释）；
-3. `softprops/action-gh-release` 上传 `app-release.apk` 并写 Release notes。
+2. `dart run tool/gen_version.dart` 把 `pubspec.yaml` 的版本号同步到
+   `lib/src/core/version.dart`（App 内更新靠它比对 tag）；
+3. `flutter build apk --release --split-per-abi` —— 按 ABI 拆分，
+   **单包 20~25MB**（通用包 60MB+，split 后小一半以上）；
+   Windows 任务另外打一个 `noval-<ver>-windows-x64.zip`；
+4. `softprops/action-gh-release` 上传全部产物并写 Release notes。
+
+产物命名（App 内更新就是照这个名字挑包的）：
+
+```
+noval-v0.2.0-arm64-v8a.apk       ← 现代手机用这个（默认优先下载）
+noval-v0.2.0-armeabi-v7a.apk     ← 老 32 位设备
+noval-v0.2.0-x86_64.apk          ← 模拟器
+noval-v0.2.0-windows-x64.zip     ← Windows 桌面版
+noval-latest-arm64-v8a.apk       ← 永远指向最新那版 arm64
+```
 
 不需要额外密钥：`GITHUB_TOKEN` 由 Actions 自动注入。**唯一的仓库设置**是
 `Settings → Actions → General → Workflow permissions` 选
 「Read and write permissions」，否则上传 Release 会被拒。
+
+### 应用内更新
+
+「我的 → 检查更新」会打 `api.github.com/repos/knowei/noval-koko/releases/latest`，
+比对 `lib/src/core/version.dart` 里的版本号：
+
+- 有新版本 → 弹窗给出体积与 Release notes →「下载并安装」；
+- 下载走 `UpdateService.download`，落地到 `<应用支持目录>/updates/`，带进度条；
+- Android 用 `MethodChannel('noval/update')` → `FileProvider` + `ACTION_VIEW`
+  拉起系统安装器（首次会要求授予「安装未知应用」权限）；
+- Windows / macOS / Linux 直接打开 Release 页面手动下载。
+
+签名用的是 runner 临时 debug key；换成自己的 keystore 才需要配 Secrets（见工作流注释）。
 
 ### 用自带的假站点自测（不联网也能验证全链路）
 
@@ -119,7 +145,7 @@ flutter test integration_test/real_source_test.dart -d windows
 → 打开《Indian Fairy Tales》→ 阅读。
 
 > 国内中文公开源里约 97% 已报废（详见下文「从公开源里批量筛活源」的实测数据）。
-> 想直接读，把 `docs/live_sources.json` 导入即可（**12 个** 2026-10 实测可用的源，小说/漫画/轻小说/日轻/名著/出版物都有）；
+> 想直接读，把 `docs/live_sources.json` 导入即可（**13 个** 2026-10 实测可用的源，小说/漫画/轻小说/日轻/名著/出版物都有）；
 > 引擎侧的兼容性由本地假站点用例保证。
 
 ### 导入本地书（TXT / EPUB，不需要任何书源）
@@ -260,7 +286,8 @@ lib/
   app_state.dart                全局状态：书源、书架、搜索、章节/正文加载、阅读偏好、主题
   src/
     core/      charset_util（GBK 等解码）、text_util（清洗 / URL 补全 / 图片请求头）、
-               html_text（HTML→纯文本）、rule_exception
+               html_text（HTML→纯文本）、rule_exception、
+               update_service（查 GitHub Release / 下 APK / 拉起安装）、version（版本号，脚本生成）
     db/        database（sqflite，桌面走 ffi）、shelf_repo、source_repo
     model/     book_source（规则模型）、book_info（BookInfo / BookChapter / BookContent）、
                search_book、shelf_book
@@ -270,11 +297,15 @@ lib/
                js_engine（QuickJS + 异步桥 + atob/TextDecoder 垫片）、jsoup_shim、rule_context
     source/    source_engine（搜索 / 详情 / 目录 / 正文全流程）
     ui/        home_page、search_page、book_detail_page、mine_page、source_page、
-               chapter_list_page、widgets、motion（动效件）、nav_bar、
+               chapter_list_page、widgets、motion（动效件）、nav_bar、update_entry（检查更新）、
                theme/{app_theme, theme_sheet}、reader/{text_reader, comic_reader, read_theme}
 tool/
   mock_site.dart / mock_site_server.dart   本地假站点（小说 + 漫画）
   fetch_sources.ps1            从 GitHub 批量抓公开书源集合（结果放 tool/scan_raw/，不入库）
+  gen_version.dart             从 pubspec.yaml 生成 lib/src/core/version.dart
+  make_mh_mirrors.py           按包子系模板生成镜像源（bzmh.org）
+  add_sources_generic.py       把 sample_sources/*.json 并入 docs/live_sources.json
+  sync_db.py                   把 docs/live_sources.json 同步进本机 App 的 SQLite
   scan_report.txt / pick_log.txt           体检与筛选的实测输出
 sample_sources/
   standardebooks.json           真实书源（联网可用，端到端验证用）
@@ -359,6 +390,7 @@ flutter test integration_test/curated_sources_test.dart -d windows
 | 🏛名著 | Standard Ebooks | 小说 | 7 条（pride） | 67 章 | 英文原文 |
 | 🗾日文轻小说 | カクヨム `kakuyomu.jp` | 小说 | 6 条（スライム） | 5~1000+ 章 | 3493 字（日文原文） |
 | 🧩漫画 | 包子漫画 `baozimh.org` | 漫画 | 9 条（斗罗大陆） | 605 章 | 单章 36 张图 |
+| 🧩漫画 | 包子漫画·镜像 `bzmh.org` | 漫画 | 9 条（斗罗大陆） | 605 章 | 单章 36 张图（同款解密器） |
 | 📚出版物 | 可阅文学网 `www.kepub.net` | 小说 | 1 条（山雨） | 29 章 | 2 万字级（`<br>` 分段） |
 | 📚出版物 | 麦归文学 `www.maiguiread.com` | 小说 | 1 条（解忧杂货店） | 5 章 | 28512 字 |
 
@@ -377,6 +409,10 @@ flutter test integration_test/curated_sources_test.dart -d windows
   再按 `x.c` 映射拼成 `https://c-nd2-1.6wm.top` 等域名。解密器是异步的（返回 Promise），
   引擎为此补了 `atob` / `TextDecoder` / `window` / `location` 垫片，并把 `evaluate` 里的 Promise 手动抽干
   （QuickJS 插件不 await）。规则写法见 `sample_sources/baozimh.json` 的 `ruleContent.content`。
+- **镜像站同构**：`bzmh.org` 与 `baozimh.org` 是同一套前端（同一份 21016 字节解密器），
+  改 `bookSourceUrl` 就能复制一份兜底源（`tool/make_mh_mirrors.py`）。但 `godamh.com`（G站）
+  虽然同构、目录与图片接口都能用，**搜索是纯前端渲染**（`/s?q=` SSR 里没有结果），
+  所以没有收进来。
 
 自己验证某个源时，用这个排障用例（会把「请求」和「解析」拆开看到底卡在哪一步）：
 
