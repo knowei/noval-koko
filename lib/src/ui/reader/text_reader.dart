@@ -9,6 +9,7 @@ import '../../model/shelf_book.dart';
 import '../chapter_list_page.dart';
 import '../motion.dart';
 import 'read_theme.dart';
+import 'reader_font.dart';
 
 /// 文本阅读器：横向翻页。
 class TextReaderPage extends StatefulWidget {
@@ -58,8 +59,24 @@ class _TextReaderPageState extends State<TextReaderPage> {
     _load(_index);
   }
 
+  AppState? _appState;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState = context.read<AppState>();
+  }
+
   @override
   void dispose() {
+    // 退出阅读器时兜底存一次：滚动模式只滚了一点点、或刚进来就退出的情况
+    // 之前会丢进度，回到书架再进就回到旧章节。
+    final double offset = _appState == null
+        ? 0
+        : (_appState!.prefs.scrollMode
+            ? _scrollFrac
+            : (_pages.length <= 1 ? 0 : _page / (_pages.length - 1)));
+    _appState?.saveProgress(widget.book, _index, offset: offset);
     _pageController.dispose();
     _scroll.dispose();
     super.dispose();
@@ -165,26 +182,28 @@ class _TextReaderPageState extends State<TextReaderPage> {
   // ------------------------------------------------------------- 分页计算
 
   List<String> _paginate(double width, double height, double fontSize,
-      double lineHeight) {
+      double lineHeight, String fontId) {
     // key 里必须带上正文本身：加载中（_text 为空）时的分页结果不能拿来复用，
     // 否则正文回来之后仍然只有一页空白。
     final String key =
         '${identityHashCode(_text)}_${_text.length}_'
         '${width.round()}x${height.round()}_'
-        '${fontSize.toStringAsFixed(1)}_${lineHeight.toStringAsFixed(2)}';
+        '${fontSize.toStringAsFixed(1)}_${lineHeight.toStringAsFixed(2)}_$fontId';
     if (key == _pagesKey) return _pages;
 
-    final List<String> pages = _splitPages(_text, width, height, fontSize, lineHeight);
+    final List<String> pages =
+        _splitPages(_text, width, height, fontSize, lineHeight, fontId);
     _pagesKey = key;
     _pages = pages.isEmpty ? <String>[''] : pages;
     return _pages;
   }
 
   List<String> _splitPages(String text, double width, double height,
-      double fontSize, double lineHeight) {
+      double fontSize, double lineHeight, String fontId) {
     if (text.isEmpty || width <= 0 || height <= 0) return <String>[];
 
-    final TextStyle style = TextStyle(fontSize: fontSize, height: lineHeight);
+    final TextStyle style = ReaderFont.byId(fontId)
+        .apply(fontSize: fontSize, lineHeight: lineHeight);
     final TextPainter painter = TextPainter(
       textDirection: TextDirection.ltr,
       textScaler: TextScaler.noScaling,
@@ -243,6 +262,7 @@ class _TextReaderPageState extends State<TextReaderPage> {
                     c.maxHeight - prefs.padding * 2 - 40,
                     prefs.fontSize,
                     prefs.lineHeight,
+                    prefs.fontId,
                   );
                   if (!prefs.scrollMode &&
                       _pendingRestore >= 0 &&
@@ -320,53 +340,71 @@ class _TextReaderPageState extends State<TextReaderPage> {
     );
   }
 
+  /// 空态/错误态也要能点一下唤出菜单——否则用户会卡在「什么都点不出来」。
+  Widget _tapWrap(Widget child) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _toggleBar,
+      child: child,
+    );
+  }
+
   Widget _buildBody(List<String> pages, ReadPrefs prefs, ReadPalette palette) {
     if (_loading) {
-      return Center(
-        child: CircularProgressIndicator(color: palette.muted),
+      return _tapWrap(
+        Center(child: CircularProgressIndicator(color: palette.muted)),
       );
     }
     if (_error != null) {
-      return _ErrorView(
-        message: _error!,
-        palette: palette,
-        onRetry: () => _load(_index),
+      return _tapWrap(
+        _ErrorView(
+          message: _error!,
+          palette: palette,
+          onRetry: () => _load(_index),
+          onSwitch: () => Navigator.of(context).maybePop(),
+        ),
       );
     }
     // 有些源的首章（新书感言/公告）本身就没有正文，别给用户一个纯白页
     if (_text.trim().isEmpty) {
       final bool hasNext = _index + 1 < widget.chapters.length;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(Icons.article_outlined, size: 42, color: palette.muted),
-              const SizedBox(height: 12),
-              Text('本章没有正文内容',
-                  style: TextStyle(color: palette.muted, fontSize: 14)),
-              const SizedBox(height: 6),
-              Text('「${_chapter?.title ?? ''}」',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: palette.muted, fontSize: 12)),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 10,
-                alignment: WrapAlignment.center,
-                children: <Widget>[
-                  OutlinedButton(
-                    onPressed: () => _load(_index),
-                    child: const Text('重新加载'),
-                  ),
-                  if (hasNext)
-                    FilledButton(
-                      onPressed: () => _goChapter(_index + 1),
-                      child: const Text('下一章'),
+      return _tapWrap(
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(Icons.article_outlined, size: 42, color: palette.muted),
+                const SizedBox(height: 12),
+                Text('本章没有正文内容',
+                    style: TextStyle(color: palette.muted, fontSize: 14)),
+                const SizedBox(height: 6),
+                Text('「${_chapter?.title ?? ''}」',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.muted, fontSize: 12)),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: <Widget>[
+                    OutlinedButton(
+                      onPressed: () => _load(_index),
+                      child: const Text('重新加载'),
                     ),
-                ],
-              ),
-            ],
+                    TextButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      child: const Text('换个源'),
+                    ),
+                    if (hasNext)
+                      FilledButton(
+                        onPressed: () => _goChapter(_index + 1),
+                        child: const Text('下一章'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -401,9 +439,9 @@ class _TextReaderPageState extends State<TextReaderPage> {
           padding: EdgeInsets.symmetric(horizontal: prefs.padding),
           child: Text(
             pages[i],
-            style: TextStyle(
+            style: ReaderFont.byId(prefs.fontId).apply(
               fontSize: prefs.fontSize,
-              height: prefs.lineHeight,
+              lineHeight: prefs.lineHeight,
               color: palette.text,
             ),
           ),
@@ -440,9 +478,9 @@ class _TextReaderPageState extends State<TextReaderPage> {
           children: <Widget>[
             Text(
               _text,
-              style: TextStyle(
+              style: ReaderFont.byId(prefs.fontId).apply(
                 fontSize: prefs.fontSize,
-                height: prefs.lineHeight,
+                lineHeight: prefs.lineHeight,
                 color: palette.text,
               ),
             ),
@@ -710,6 +748,29 @@ class _TextReaderPageState extends State<TextReaderPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    const Text('字体'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: <Widget>[
+                        for (final ReaderFont f in ReaderFont.all)
+                          ChoiceChip(
+                            label: Text(
+                              f.label,
+                              style: f.apply(fontSize: 14, lineHeight: 1.2),
+                            ),
+                            selected: p.fontId == f.id,
+                            onSelected: (bool v) {
+                              p.fontId = f.id;
+                              setSheet(() {});
+                              state.updatePrefs(p);
+                              setState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     const Text('翻页方式'),
                     const SizedBox(height: 8),
                     Row(
@@ -867,11 +928,15 @@ class _ErrorView extends StatelessWidget {
     required this.message,
     required this.palette,
     required this.onRetry,
+    this.onSwitch,
   });
 
   final String message;
   final ReadPalette palette;
   final VoidCallback onRetry;
+
+  /// 回详情页换个源（这本书在当前源上读不出来时最有用）。
+  final VoidCallback? onSwitch;
 
   @override
   Widget build(BuildContext context) {
@@ -889,7 +954,15 @@ class _ErrorView extends StatelessWidget {
               style: TextStyle(color: palette.text, fontSize: 13),
             ),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+            Wrap(
+              spacing: 10,
+              alignment: WrapAlignment.center,
+              children: <Widget>[
+                OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+                if (onSwitch != null)
+                  FilledButton(onPressed: onSwitch, child: const Text('换个源')),
+              ],
+            ),
           ],
         ),
       ),

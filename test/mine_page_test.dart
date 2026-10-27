@@ -39,10 +39,13 @@ void main() {
     // 概览里的书源数量应当跟上 state
     expect(find.text('1'), findsWidgets);
 
-    // 主题面板能弹出
+    // 主题面板能弹出：外观模式（跟随系统/浅色/深色）+ 主题色
     await tester.tap(find.text('主题'));
     await tester.pumpAndSettle();
-    expect(find.text('选择主题'), findsOneWidget);
+    expect(find.text('外观'), findsWidgets);
+    expect(find.text('跟随系统'), findsOneWidget);
+    expect(find.text('浅色'), findsOneWidget);
+    expect(find.text('深色'), findsOneWidget);
     for (final AppTheme t in kAppThemes) {
       expect(find.text(t.label), findsWidgets);
     }

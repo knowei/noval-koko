@@ -1,5 +1,36 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+
+/// 界面字体：显式指定系统里的中文无衬线字体。
+///
+/// Flutter 在 Windows 上默认用 Segoe UI，这个字体没有中文字形，中文会回退
+/// 到宋体一类衬线字体，小字号看起来发虚、笔画粗细不齐 —— 这就是「字体怪怪的」
+/// 的来源。Android 上默认 Roboto 同理，回退结果随 ROM 而异。
+/// 这里按平台点名一个正经的黑体，再给一串 fallback 兜底。
+String get kUiFontFamily {
+  if (defaultTargetPlatform == TargetPlatform.windows) {
+    return 'Microsoft YaHei UI';
+  }
+  if (defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS) {
+    return 'PingFang SC';
+  }
+  return 'Noto Sans CJK SC';
+}
+
+/// 找不到上面的首选字体时依次尝试。
+const List<String> kUiFontFallback = <String>[
+  'Microsoft YaHei UI',
+  'Microsoft YaHei',
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'Noto Sans CJK SC',
+  'Noto Sans SC',
+  'Source Han Sans SC',
+  'Segoe UI',
+  'Roboto',
+];
 
 /// 间距与圆角：页面里不写死数字，统一从这里取。
 class AppSpace {
@@ -253,24 +284,32 @@ ThemeData buildAppTheme(AppTheme theme, Brightness brightness) {
     displayMedium: t(26, FontWeight.w700, height: 1.25),
     headlineSmall: t(20, FontWeight.w700, height: 1.3),
     titleLarge: t(20, FontWeight.w700, height: 1.3),
-    titleMedium: t(15, FontWeight.w600),
-    titleSmall: t(13, FontWeight.w600),
+    titleMedium: t(15, FontWeight.w700),
+    titleSmall: t(13, FontWeight.w700),
     bodyLarge: t(16, FontWeight.w400, height: 1.7),
     bodyMedium: t(15, FontWeight.w400, height: 1.6),
     bodySmall: t(12, FontWeight.w400, color: p.inkMid),
-    labelLarge: t(14, FontWeight.w600),
-    labelMedium: t(12, FontWeight.w500),
-    labelSmall: t(11, FontWeight.w500),
+    labelLarge: t(14, FontWeight.w700),
+    labelMedium: t(12, FontWeight.w400),
+    labelSmall: t(11, FontWeight.w400),
+  );
+
+  // 所有文字统一走界面字体（含 CJK fallback）。
+  final TextTheme uiText = text.apply(
+    fontFamily: kUiFontFamily,
+    fontFamilyFallback: kUiFontFallback,
   );
 
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
+    fontFamily: kUiFontFamily,
+    fontFamilyFallback: kUiFontFallback,
     scaffoldBackgroundColor: p.bg,
     canvasColor: p.bg,
     dividerColor: p.line,
-    textTheme: text,
+    textTheme: uiText,
     splashFactory: InkSparkle.splashFactory,
     extensions: <ThemeExtension<dynamic>>[p],
     appBarTheme: AppBarTheme(
@@ -279,13 +318,14 @@ ThemeData buildAppTheme(AppTheme theme, Brightness brightness) {
       scrolledUnderElevation: 0,
       backgroundColor: p.bg,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: text.headlineSmall,
+      titleTextStyle: uiText.headlineSmall,
       iconTheme: IconThemeData(color: p.ink, size: 22),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: p.ink,
-      contentTextStyle: TextStyle(color: p.bg, fontSize: 13),
+      contentTextStyle: TextStyle(
+          color: p.bg, fontSize: 13, fontFamily: kUiFontFamily),
       shape: RoundedRectangleBorder(borderRadius: AppRadius.rMd),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -295,7 +335,7 @@ ThemeData buildAppTheme(AppTheme theme, Brightness brightness) {
         elevation: 0,
         minimumSize: const Size(0, 46),
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.rPill),
       ),
     ),
@@ -304,14 +344,14 @@ ThemeData buildAppTheme(AppTheme theme, Brightness brightness) {
         foregroundColor: p.ink,
         minimumSize: const Size(0, 46),
         side: BorderSide(color: p.line),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.rPill),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: p.primary,
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(

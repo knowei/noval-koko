@@ -24,7 +24,7 @@ class MotingApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(state.theme, Brightness.light),
             darkTheme: buildAppTheme(state.theme, Brightness.dark),
-            themeMode: ThemeMode.light,
+            themeMode: state.themeMode,
             // 桌面端默认不允许鼠标拖动滚动，导致「下拉刷新」这种手势在
             // Windows 上根本触发不了。这里显式放开鼠标/触控板拖拽。
             scrollBehavior: const _DragScrollBehavior(),

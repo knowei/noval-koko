@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../core/release_notes.dart';
 import '../core/update_service.dart';
 import '../core/version.dart';
 import 'motion.dart';
@@ -91,6 +92,7 @@ class _UpdateEntryState extends State<UpdateEntry> {
     final String size = info.asset == null
         ? '这个 Release 没有 APK'
         : '${(info.asset!.size / 1024 / 1024).toStringAsFixed(1)} MB';
+    final String notes = ReleaseNotes.plain(info.body);
     final bool? go = await showDialog<bool>(
       context: context,
       builder: (BuildContext c) => AlertDialog(
@@ -103,11 +105,25 @@ class _UpdateEntryState extends State<UpdateEntry> {
             children: <Widget>[
               Text('${info.asset?.name ?? '无 APK'} · $size',
                   style: c.text.bodySmall),
-              if (info.body.trim().isNotEmpty) ...<Widget>[
+              if (notes.isNotEmpty) ...<Widget>[
                 const SizedBox(height: AppSpace.md),
-                Text(info.body.trim(),
-                    style: c.text.bodySmall, maxLines: 12,
-                    overflow: TextOverflow.ellipsis),
+                Container(
+                  width: double.maxFinite,
+                  padding: const EdgeInsets.all(AppSpace.md),
+                  decoration: BoxDecoration(
+                    color: p.surfaceAlt,
+                    borderRadius: AppRadius.rSm,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        notes,
+                        style: c.text.bodySmall?.copyWith(height: 1.6),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ],
           ),

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/html_text.dart';
@@ -43,16 +43,20 @@ class SearchOutcome {
 class ReadPrefs {
   ReadPrefs({
     this.fontSize = 19,
-    this.lineHeight = 1.7,
+    this.lineHeight = 1.85,
     this.theme = 0,
     this.padding = 18,
     this.scrollMode = true,
+    this.fontId = 'song',
   });
 
   double fontSize;
   double lineHeight;
   int theme; // 0 纸黄 1 白 2 夜间 3 护眼绿
   double padding;
+
+  /// 正文字体：song 宋体 / hei 黑体 / kai 楷体 / system 系统默认。
+  String fontId;
 
   /// true=上下滚动，false=左右翻页。
   bool scrollMode;
@@ -63,18 +67,41 @@ class ReadPrefs {
         'theme': theme,
         'padding': padding,
         'scrollMode': scrollMode,
+        'fontId': fontId,
       };
 
   static ReadPrefs fromJson(Map<String, dynamic> j) => ReadPrefs(
         fontSize: (j['fontSize'] as num?)?.toDouble() ?? 19,
-        lineHeight: (j['lineHeight'] as num?)?.toDouble() ?? 1.7,
+        lineHeight: (j['lineHeight'] as num?)?.toDouble() ?? 1.85,
         theme: (j['theme'] as int?) ?? 0,
         padding: (j['padding'] as num?)?.toDouble() ?? 18,
         scrollMode: (j['scrollMode'] as bool?) ?? true,
+        fontId: (j['fontId'] as String?) ?? 'song',
       );
 }
 
 /// 全局状态。UI 只通过它拿数据和动作。
+/// 换源候选：另一个源里的同一本书。
+class SourceCandidate {
+  SourceCandidate({required this.source, required this.book});
+
+  final BookSource source;
+  final SearchBook book;
+}
+
+/// 换源结果：换成哪个条目、新源的章节目录、迁移后的进度。
+class SwitchResult {
+  SwitchResult({
+    required this.book,
+    required this.chapters,
+    required this.index,
+  });
+
+  final ShelfBook book;
+  final List<BookChapter> chapters;
+  final int index;
+}
+
 class AppState extends ChangeNotifier {
   AppState();
 
@@ -89,6 +116,15 @@ class AppState extends ChangeNotifier {
   /// 当前主题 id（见 [kAppThemes]）。
   String themeId = kMotimg.id;
   AppTheme get theme => themeById(themeId);
+
+  /// 主题模式：system 跟随系统 / light 浅色 / dark 深色。
+  String themeModeId = 'system';
+
+  ThemeMode get themeMode => switch (themeModeId) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
 
   bool ready = false;
   bool searching = false;
@@ -114,6 +150,10 @@ class AppState extends ChangeNotifier {
     }
     final String? savedTheme = await shelfRepo.getSetting('app_theme');
     if (savedTheme != null && savedTheme.isNotEmpty) themeId = themeById(savedTheme).id;
+    final String? savedMode = await shelfRepo.getSetting('app_theme_mode');
+    if (savedMode == 'system' || savedMode == 'light' || savedMode == 'dark') {
+      themeModeId = savedMode!;
+    }
     ready = true;
     notifyListeners();
   }
@@ -348,6 +388,114 @@ class AppState extends ChangeNotifier {
     return s.length > 120 ? '${s.substring(0, 120)}…' : s;
   }
 
+  // ------------------------------------------------------------- 换源（多源）
+
+  /// 在其它源里找同一本书。命中一个就通过 [onCandidate] 抛一个，UI 可以边搜边显示。
+  Future<List<SourceCandidate>> findSourcesFor(
+    ShelfBook book, {
+    void Function(SourceCandidate candidate)? onCandidate,
+  }) async {
+    final String want = normBookName(book.name);
+    final List<SourceCandidate> out = <SourceCandidate>[];
+    for (final BookSource source in searchableSources) {
+      if (source.url == book.sourceUrl) continue;
+      try {
+        final List<SearchBook> hits = await engine
+            .search(source, book.name)
+            .timeout(const Duration(seconds: 25));
+        SearchBook? best;
+        for (final SearchBook h in hits) {
+          final String got = normBookName(h.name);
+          if (got == want ||
+              (got.length >= 2 && (got.contains(want) || want.contains(got)))) {
+            best = h;
+            break;
+          }
+        }
+        if (best == null) continue;
+        final SourceCandidate c = SourceCandidate(source: source, book: best);
+        out.add(c);
+        onCandidate?.call(c);
+      } catch (_) {
+        // 单个源失败不影响整张候选表
+      }
+    }
+    return out;
+  }
+
+  /// 把书架上这本书切到 [cand] 这个源，返回新章节与迁移后的进度。
+  ///
+  /// 章节缓存跟着新的 bookUrl 走；旧条目连同旧缓存一起删掉，避免留下僵尸书。
+  Future<SwitchResult> switchSource(
+    ShelfBook book,
+    SourceCandidate cand, {
+    String? chapterTitle,
+  }) async {
+    final BookInfo info = await engine.bookInfo(cand.source, cand.book.bookUrl);
+    final List<BookChapter> chapters = await engine.chapters(cand.source, info);
+    if (chapters.isEmpty) {
+      throw RuleException('这个源没解析到目录，换不过去');
+    }
+    int index = 0;
+    final String title = (chapterTitle ?? '').trim();
+    if (title.isNotEmpty) index = matchChapterIndex(chapters, title);
+
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final String nextUrl =
+        info.bookUrl.isEmpty ? cand.book.bookUrl : info.bookUrl;
+    final ShelfBook next = ShelfBook(
+      bookUrl: nextUrl,
+      name: info.name.isEmpty ? book.name : info.name,
+      author: info.author.isEmpty ? book.author : info.author,
+      cover: info.cover,
+      intro: info.intro.isEmpty ? book.intro : info.intro,
+      kind: info.kind.isEmpty ? book.kind : info.kind,
+      sourceUrl: cand.source.url,
+      sourceName: cand.source.name,
+      type: cand.source.type,
+      tocUrl: info.tocUrl,
+      totalChapters: chapters.length,
+      latestChapter: chapters.isEmpty ? '' : chapters.last.title,
+      lastReadIndex: index,
+      lastReadOffset: 0,
+      lastReadTime: now,
+      createdTime: book.createdTime == 0 ? now : book.createdTime,
+    );
+
+    await shelfRepo.saveChapters(next.bookUrl, chapters);
+    if (next.bookUrl != book.bookUrl) {
+      await shelfRepo.remove(book.bookUrl);
+    }
+    await shelfRepo.upsert(next);
+    await reloadShelf();
+    notifyListeners();
+    return SwitchResult(book: next, chapters: chapters, index: index);
+  }
+
+  /// 把书名压成可比较的形状：去空白、去标点、统一大小写。
+  static final RegExp _nameNoise = RegExp(
+    r'''[\s\u3000《》〈〉（）()\[\]【】·、，,。.!！?？:：;；"“”'`~～\-—_]+''',
+  );
+
+  static String normBookName(String raw) =>
+      raw.replaceAll(_nameNoise, '').toLowerCase();
+
+  /// 在新源目录里找与 [title] 最像的一章（先精确、再包含），找不到就第 0 章。
+  static int matchChapterIndex(List<BookChapter> chapters, String title) {
+    final String want = normBookName(title);
+    for (int i = 0; i < chapters.length; i++) {
+      if (normBookName(chapters[i].title) == want) return i;
+    }
+    if (want.isNotEmpty) {
+      for (int i = 0; i < chapters.length; i++) {
+        final String got = normBookName(chapters[i].title);
+        if (got.isEmpty) continue;
+        if (got.contains(want) || want.contains(got)) return i;
+      }
+    }
+    return 0;
+  }
+
   // ------------------------------------------------------------------ books
 
   Future<List<BookChapter>> loadChapters(
@@ -515,7 +663,28 @@ class AppState extends ChangeNotifier {
   Future<void> saveProgress(ShelfBook book, int index, {double offset = 0}) async {
     await shelfRepo.saveProgress(
         bookUrl: book.bookUrl, index: index, offset: offset);
+    // 内存里的书架对象同步改：否则回到书架再点「继续阅读」用的还是旧章节。
+    final int i =
+        shelf.indexWhere((ShelfBook b) => b.bookUrl == book.bookUrl);
+    if (i < 0) return;
+    final ShelfBook b = shelf[i];
+    b.lastReadIndex = index;
+    b.lastReadOffset = offset;
+    b.lastReadTime = DateTime.now().millisecondsSinceEpoch;
+    book.lastReadIndex = index;
+    book.lastReadOffset = offset;
+    book.lastReadTime = b.lastReadTime;
+    shelf.sort(
+        (ShelfBook x, ShelfBook y) => y.lastReadTime.compareTo(x.lastReadTime));
+    // 滚动模式每停一次都会调这里，节流一下避免书架反复重建。
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastProgressNotify > 1200) {
+      _lastProgressNotify = now;
+      notifyListeners();
+    }
   }
+
+  int _lastProgressNotify = 0;
 
   // ------------------------------------------------------------------ prefs
 
@@ -526,6 +695,14 @@ class AppState extends ChangeNotifier {
   }
 
   /// 切换整体主题（颜色 + 组件样式），立即生效并持久化。
+  /// 切换主题模式（跟随系统 / 浅色 / 深色），立即生效并持久化。
+  Future<void> setThemeMode(String id) async {
+    if (id == themeModeId) return;
+    themeModeId = id;
+    notifyListeners();
+    await shelfRepo.setSetting('app_theme_mode', id);
+  }
+
   Future<void> setTheme(String id) async {
     final AppTheme next = themeById(id);
     if (next.id == themeId) return;

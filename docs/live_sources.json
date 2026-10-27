@@ -652,5 +652,90 @@
       "imageStyle": ""
     },
     "ruleExplore": {}
+  },
+  {
+    "bookSourceName": "幻梦轻小说",
+    "bookSourceUrl": "https://www.huanmengacg.com",
+    "bookSourceGroup": "📗中文轻小说",
+    "bookSourceType": 0,
+    "bookSourceComment": "幻梦轻小说（huanmengacg.com），2026-10-27 实测：搜索 ?key= 有效、目录取书本页 ul、正文取 #content。注意：正文的 <p> 顺序被打乱（靠 style 的 order 排序），且夹带 class=#content[data-c] 的干扰段落，需按 order 排序并剔除干扰段。",
+    "enabled": true,
+    "searchUrl": "https://www.huanmengacg.com/index.php/book/search?key={{key}}",
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\",\"Accept-Language\":\"zh-CN,zh;q=0.9\"}",
+    "ruleSearch": {
+      "bookList": "@css:dl",
+      "name": "@css:h3 a@text",
+      "author": "@css:dd p!0@text",
+      "bookUrl": "@css:h3 a@href",
+      "coverUrl": "@css:img@data-original",
+      "intro": "@css:p.big-book-info@text",
+      "kind": "@css:span.red-lx@text",
+      "lastChapter": "@css:span.red-lxa@text",
+      "checkKeyWord": "史莱姆"
+    },
+    "ruleBookInfo": {
+      "name": "@css:meta[property=\"og:novel:book_name\"]@content",
+      "author": "@css:meta[property=\"og:novel:author\"]@content",
+      "intro": "@css:meta[property=\"og:description\"]@content",
+      "kind": "@css:meta[property=\"og:novel:category\"]@content",
+      "lastChapter": "@css:meta[property=\"og:novel:latest_chapter_name\"]@content",
+      "coverUrl": "@css:img[alt*=\"封面\"]@src"
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function(){var doc=org.jsoup.Jsoup.parse(result);var as=doc.select('div.zhangjie-quanbu li a');var arr=[];for(var i=0;i<as.size();i++){var a=as.get(i);var href=a.attr('href');var m=/(\\d+)\\.html/.exec(href);if(!m)continue;arr.push({id:parseInt(m[1],10),href:href,t:a.text()});}arr.sort(function(x,y){return x.id-y.id;});var out=[];var seen={};for(var j=0;j<arr.length;j++){if(seen[arr[j].href])continue;seen[arr[j].href]=1;out.push('<a href=\"'+arr[j].href+'\">'+arr[j].t+'</a>');}return out;})()",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href"
+    },
+    "ruleContent": {
+      "content": "@js:(function(){var doc=org.jsoup.Jsoup.parse(result);var box=doc.select('#content');if(box.size()===0)return '';var el=box.get(0);var noise=el.attr('data-c')||'';var ps=el.select('p');var arr=[];for(var i=0;i<ps.size();i++){var p=ps.get(i);if(noise&&p.className().indexOf(noise)>=0)continue;var st=p.attr('style')||'';var m=/order:\\s*(\\d+)/.exec(st);var t=p.text();if(!t)continue;arr.push({o:m?parseInt(m[1],10):0,t:t});}arr.sort(function(a,b){return a.o-b.o;});var out=[];for(var j=0;j<arr.length;j++)out.push(arr[j].t);return out.join('\\n');})()"
+    }
+  },
+  {
+    "bookSourceName": "笔趣阁bigee",
+    "bookSourceGroup": "📖中文小说",
+    "bookSourceComment": "m.bigee.cc。两个关键：①搜索是 GET /user/search.html?q= ，直接返回 JSON 数组；②章节页默认返回「加载中……」门禁页（JS 探测镜像 favicon 后跳 /userverify），但**只要地址带任意查询串（如 ?all=1）就能拿到真正的 HTML**，所以 tocUrl 和 chapterUrl 都补 ?all=1。",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://m.bigee.cc",
+    "concurrentRate": "800/1",
+    "bookUrlPattern": "/book/\\d+/",
+    "enabled": true,
+    "enabledCookieJar": true,
+    "enabledExplore": false,
+    "customOrder": 0,
+    "header": {
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      "Accept-Language": "zh-CN,zh;q=0.9",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Referer": "https://m.bigee.cc/"
+    },
+    "searchUrl": "https://m.bigee.cc/user/search.html?q={{key}}",
+    "ruleSearch": {
+      "bookList": "@Json:$[*]",
+      "name": "@Json:$.articlename",
+      "author": "@Json:$.author",
+      "bookUrl": "@Json:$.url_list",
+      "coverUrl": "@Json:$.url_img",
+      "intro": "@Json:$.intro",
+      "checkKeyWord": "剑来"
+    },
+    "ruleBookInfo": {
+      "name": "@css:meta[property=\"og:novel:book_name\"]@content",
+      "author": "@css:meta[property=\"og:novel:author\"]@content",
+      "kind": "@css:meta[property=\"og:novel:category\"]@content",
+      "intro": "@css:meta[property=\"og:description\"]@content",
+      "coverUrl": "@css:meta[property=\"og:image\"]@content",
+      "lastChapter": "@css:meta[property=\"og:novel:latest_chapter_name\"]@content",
+      "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content##$##list.html?all=1"
+    },
+    "ruleToc": {
+      "chapterList": "@css:div.book_last dl dd a[href*=\"/book/\"]",
+      "chapterName": "text",
+      "chapterUrl": "href##$##?all=1",
+      "nextTocUrl": ""
+    },
+    "ruleContent": {
+      "content": "@css:#chaptercontent@html",
+      "nextContentUrl": ""
+    }
   }
 ]

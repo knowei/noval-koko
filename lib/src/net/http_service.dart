@@ -64,6 +64,10 @@ class HttpService {
   late final Dio _dio;
   late final CookieJar _jar;
 
+  /// 测试用：事后替换传输层（不打真网络）。
+  void useAdapter(HttpClientAdapter adapter) =>
+      _dio.httpClientAdapter = adapter;
+
   /// 按域名限速（书源的 `concurrentRate` 会通过它生效）。
   final RateLimiter limiter;
 
@@ -263,7 +267,10 @@ class HttpService {
 
       // 记录域名 + 提示 Cookie 有更新（App 层节流落盘）
       _hosts.add(uri.host);
-      if (resp.headers.value('set-cookie') != null) onCookiesChanged?.call();
+      // 注意：多值 header 不能用 headers.value()，dio 5.11 会直接抛
+      // 「"set-cookie" header has more than one value」。
+      final List<String>? setCookies = resp.headers['set-cookie'];
+      if (setCookies != null && setCookies.isNotEmpty) onCookiesChanged?.call();
 
       final int code = resp.statusCode ?? 0;
       if ((code == 403 || code == 503 || code == 429) &&

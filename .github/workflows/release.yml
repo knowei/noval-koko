@@ -85,12 +85,30 @@ jobs:
           if-no-files-found: error
 
       # 只有打 tag 时才发 Release；workflow_dispatch 只留 artifact
+      # Release 正文就是 App 内更新弹窗显示的内容。
+      # 自动生成的 notes 只有一串 PR 标题 + Full Changelog 链接，用户看不懂，
+      # 所以优先用手写的 docs/release-notes/<tag>.md。
+      - name: Prepare release notes
+        if: github.ref_type == 'tag'
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          SRC="docs/release-notes/${TAG}.md"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" dist/release-notes.md
+            echo "使用手写更新说明：$SRC"
+          else
+            printf '## %s\n\n· 细节见仓库提交记录\n' "$TAG" > dist/release-notes.md
+            echo "未找到 $SRC，使用兜底说明"
+          fi
+          echo "--- dist/release-notes.md ---"
+          cat dist/release-notes.md
+
       - name: Publish to Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.apk
-          generate_release_notes: true
+          body_path: dist/release-notes.md
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,10 @@
+﻿import sys, re
+sys.stdout.reconfigure(encoding='utf-8')
+h=open("tool/hm_book.html",encoding="utf-8").read()
+print("=== imgs ===")
+for m in re.findall(r'<img[^>]*>', h)[:8]: print("  ", m[:200])
+print("=== chapter list area ===")
+i=h.find('book_read_6963_')
+print(h[max(0,i-800):i+600].replace("\n"," ")[:1500])
+print("=== vol headers ===")
+print([re.sub(r'<[^>]+>','',x).strip()[:30] for x in re.findall(r'class="vol-header"[^>]*>(.*?)</div>', h, re.S)][:6])

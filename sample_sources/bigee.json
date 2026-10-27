@@ -1,0 +1,48 @@
+{
+  "bookSourceName": "笔趣阁bigee",
+  "bookSourceGroup": "📖中文小说",
+  "bookSourceComment": "m.bigee.cc。两个关键：①搜索是 GET /user/search.html?q= ，直接返回 JSON 数组；②章节页默认返回「加载中……」门禁页（JS 探测镜像 favicon 后跳 /userverify），但**只要地址带任意查询串（如 ?all=1）就能拿到真正的 HTML**，所以 tocUrl 和 chapterUrl 都补 ?all=1。",
+  "bookSourceType": 0,
+  "bookSourceUrl": "https://m.bigee.cc",
+  "concurrentRate": "800/1",
+  "bookUrlPattern": "/book/\\d+/",
+  "enabled": true,
+  "enabledCookieJar": true,
+  "enabledExplore": false,
+  "customOrder": 0,
+  "header": {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Referer": "https://m.bigee.cc/"
+  },
+  "searchUrl": "https://m.bigee.cc/user/search.html?q={{key}}",
+  "ruleSearch": {
+    "bookList": "@Json:$[*]",
+    "name": "@Json:$.articlename",
+    "author": "@Json:$.author",
+    "bookUrl": "@Json:$.url_list",
+    "coverUrl": "@Json:$.url_img",
+    "intro": "@Json:$.intro",
+    "checkKeyWord": "剑来"
+  },
+  "ruleBookInfo": {
+    "name": "@css:meta[property=\"og:novel:book_name\"]@content",
+    "author": "@css:meta[property=\"og:novel:author\"]@content",
+    "kind": "@css:meta[property=\"og:novel:category\"]@content",
+    "intro": "@css:meta[property=\"og:description\"]@content",
+    "coverUrl": "@css:meta[property=\"og:image\"]@content",
+    "lastChapter": "@css:meta[property=\"og:novel:latest_chapter_name\"]@content",
+    "tocUrl": "@css:meta[property=\"og:novel:read_url\"]@content##$##list.html?all=1"
+  },
+  "ruleToc": {
+    "chapterList": "@css:div.book_last dl dd a[href*=\"/book/\"]",
+    "chapterName": "text",
+    "chapterUrl": "href##$##?all=1",
+    "nextTocUrl": ""
+  },
+  "ruleContent": {
+    "content": "@css:#chaptercontent@html",
+    "nextContentUrl": ""
+  }
+}

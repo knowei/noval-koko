@@ -72,3 +72,6 @@ app.*.map.json
 
 # 桌面端构建产物（windows/.gitignore 已忽略 x64/ 与 ephemeral/，这里兜底）
 /windows/flutter/ephemeral/
+
+# ?????/temp
+/tool/shot.png

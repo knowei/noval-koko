@@ -5,6 +5,7 @@ import '../app_state.dart';
 import '../model/book_info.dart';
 import '../model/shelf_book.dart';
 import 'chapter_list_page.dart';
+import 'switch_source_sheet.dart';
 import 'reader/comic_reader.dart';
 import 'reader/text_reader.dart';
 import 'motion.dart';
@@ -21,7 +22,7 @@ class BookDetailPage extends StatefulWidget {
 }
 
 class _BookDetailPageState extends State<BookDetailPage> {
-  late final ShelfBook _book = widget.book;
+  late ShelfBook _book = widget.book;
 
   List<BookChapter> _chapters = <BookChapter>[];
   bool _loading = true;
@@ -111,6 +112,45 @@ class _BookDetailPageState extends State<BookDetailPage> {
     if (!mounted) return;
     setState(() => _inShelf = true);
   }
+
+  /// 当前进度落在哪一章的标题上——换源时用它把进度挪过去。
+  String? get _currentChapterTitle {
+    final int i = _book.lastReadIndex;
+    if (i >= 0 && i < _chapters.length) return _chapters[i].title;
+    return null;
+  }
+
+  Future<void> _openSwitchSource() async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final SourceCandidate? cand = await showModalBottomSheet<SourceCandidate>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) => SwitchSourceSheet(book: _book),
+    );
+    if (cand == null || !mounted) return;
+    final String? title = _currentChapterTitle;
+    setState(() => _loading = true);
+    try {
+      final SwitchResult r = await context
+          .read<AppState>()
+          .switchSource(_book, cand, chapterTitle: title);
+      if (!mounted) return;
+      setState(() {
+        _book = r.book;
+        _chapters = r.chapters;
+        _loading = false;
+      });
+      messenger.showSnackBar(SnackBar(
+        content: Text('已换到「${cand.source.name}」，共 ${r.chapters.length} 章'),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      messenger.showSnackBar(SnackBar(content: Text('换源失败：$e')));
+    }
+  }
+
 
   Future<void> _openCatalog() async {
     if (_chapters.isEmpty) {
@@ -230,6 +270,16 @@ class _BookDetailPageState extends State<BookDetailPage> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _openSwitchSource,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.swap_horiz, size: 18),
+                      label: const Text('换源'),
                     ),
                   ],
                 ),
@@ -386,3 +436,4 @@ class _BookDetailPageState extends State<BookDetailPage> {
     );
   }
 }
+

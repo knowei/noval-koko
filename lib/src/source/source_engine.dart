@@ -248,7 +248,34 @@ class SourceEngine {
         ),
       );
     }
-    return _filterByKeyWord(out, key, rule);
+    return _rankByRelevance(_filterByKeyWord(out, key, rule), key);
+  }
+
+  /// 让「完全匹配」排最前面：搜「神秘复苏」时希望顺序是
+  /// 神秘复苏 → 神秘复苏XXX → XXX神秘复苏 → 其它。
+  /// 只按分数稳定排序（同分保持站点原始顺序），不改条数。
+  List<SearchBook> _rankByRelevance(List<SearchBook> list, String key) {
+    final String k = key.trim();
+    if (k.isEmpty || list.length < 2) return list;
+    final String nk = _normalize(k);
+    if (nk.isEmpty) return list;
+
+    int score(SearchBook b) {
+      final String name = b.name;
+      final String nn = _normalize(name);
+      if (nn == nk) return 0; // 完全一致
+      if (nn.startsWith(nk)) return 1; // 前缀一致：神秘复苏XXX
+      if (name.contains(k)) return 2; // 原文包含（含中间包含）：XXX神秘复苏
+      if (nn.contains(nk)) return 3; // 忽略标点后包含
+      return 4; // 不匹配（作者名命中之类）
+    }
+
+    final List<int> idx = List<int>.generate(list.length, (int i) => i);
+    idx.sort((int a, int b) {
+      final int c = score(list[a]).compareTo(score(list[b]));
+      return c != 0 ? c : a.compareTo(b);
+    });
+    return <SearchBook>[for (final int i in idx) list[i]];
   }
 
   /// 有些站点根本不是「按关键词搜」：查不到时会把「全部/热门/排行榜」列表返回
@@ -461,7 +488,12 @@ class SourceEngine {
 
     final String text = texts.join('\n');
     if (text.isEmpty) {
-      throw RuleException('正文为空，书源规则可能失效');
+      throw RuleException(
+        '正文为空：可能是书源规则失效，也可能这个源本来就不给正文',
+        detail: '用同一个关键词在搜索页里搜一下，别的源也许有这本书；'
+            '如果这个站在浏览器里也看不到正文（要求登录、只在 App 内阅读、已下线），'
+            '那规则是改不出来的。',
+      );
     }
     return BookContent(text: text, title: chapter.title);
   }
