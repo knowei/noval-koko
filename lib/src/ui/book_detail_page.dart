@@ -188,26 +188,52 @@ class _BookDetailPageState extends State<BookDetailPage> {
                             _chip(_book.sourceName, null),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          FilledButton.icon(
-                            onPressed: _loading ? null : () => _read(),
-                            icon: const Icon(Icons.menu_book, size: 18),
-                            label: Text(hasProgress ? '继续阅读' : '开始阅读'),
-                          ),
-                          OutlinedButton(
-                            onPressed: _toggleShelf,
-                            child: Text(_inShelf ? '移出书架' : '加入书架'),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
               ],
+            ),
+          ),
+          // 操作按钮单独占一行：窄屏（手机）两个按钮平分整行，
+          // 宽屏最多 460 逻辑像素，避免挤在封面右侧折成两行。
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+            // Align 让 ConstrainedBox 拿到松约束（ListView 的交叉轴是紧宽度），
+            // 否则 maxWidth 不生效、桌面端按钮会被拉满整行。
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _loading ? null : () => _read(),
+                        icon: const Icon(Icons.menu_book, size: 18),
+                        label: Text(
+                          hasProgress ? '继续阅读' : '开始阅读',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _toggleShelf,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 40),
+                        ),
+                        child: Text(
+                          _inShelf ? '移出书架' : '加入书架',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           if (_book.latestChapter.isNotEmpty)
