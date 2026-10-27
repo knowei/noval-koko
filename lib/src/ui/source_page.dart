@@ -8,10 +8,8 @@ import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../model/book_source.dart';
 import '../net/net_diag.dart';
-import '../net/http_service.dart';
 import '../net/net_diag_page.dart';
 import '../source/pica_source.dart';
-import 'cf_verify_page.dart';
 import 'motion.dart';
 import 'subscription_page.dart';
 import 'theme/app_theme.dart';
@@ -357,10 +355,10 @@ class _SourcePageState extends State<SourcePage> {
     );
   }
 
-  /// 真开一次浏览器过验证：拿到 Cookie 就灌进引擎的 CookieJar。
+  /// 站点挂 Cloudflare 人机验证时，规则请求会一律 403。
   ///
-  /// 适用场景：站点挂着 Cloudflare 人机验证，规则请求一律 403。用户在
-  /// WebView 里正常浏览一次，`cf_clearance` 这类 Cookie 就能被抓回来。
+  /// 内置浏览器在部分平台取不到站点 Cookie（WebView 起不来/被墙），
+  /// 所以统一走后路：用 Edge 过一次验证，把 `cf_clearance` 粘进来。
   Future<void> _openCfVerify(BookSource s) async {
     final Uri? uri = Uri.tryParse(s.url);
     final String host = uri?.host ?? '';
@@ -368,22 +366,23 @@ class _SourcePageState extends State<SourcePage> {
       _toast('这个书源的 URL 解析不出域名，先检查书源 URL');
       return;
     }
-    final String scheme = (uri!.scheme == 'http') ? 'http' : 'https';
-    final AppState state = context.read<AppState>();
-    final NavigatorState nav = Navigator.of(context);
-    final List<ImportedCookie>? cookies = await nav.push<List<ImportedCookie>>(
-      fadeSlideRoute<List<ImportedCookie>>(
-        CfVerifyPage(startUrl: '$scheme://$host/', host: host),
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext c) => AlertDialog(
+        title: const Text('这个源需要过人机验证'),
+        content: Text(
+          '$host 挂在 Cloudflare 后面，规则请求会被拦成 403。\n\n'
+          '做法：用 Edge 打开 https://$host/ ，过掉验证后按 F12 → Application → '
+          'Cookies → 复制 cf_clearance 的值，再去「我的 → 粘贴 Cookie」贴进来。',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
       ),
     );
-    if (cookies == null || cookies.isEmpty) {
-      _toast('没取到 Cookie：这个平台的内置浏览器取不到站点 Cookie。'
-          '请用 Edge 过验证后，走「我的 → 粘贴 Cookie」');
-      return;
-    }
-    final int n = await state.engine.http.importCookies(host, cookies);
-    if (!mounted) return;
-    _toast(n > 0 ? '已保存 $n 条 Cookie，再回去搜一次试试' : 'Cookie 没保存成功');
   }
 
   void _showJson(BookSource s) {

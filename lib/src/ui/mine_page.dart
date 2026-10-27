@@ -7,10 +7,8 @@ import '../app_state.dart';
 import '../core/version.dart';
 import '../model/book_source.dart';
 import '../model/shelf_book.dart';
-import '../net/http_service.dart';
 import '../net/net_diag.dart';
 import '../net/net_diag_page.dart';
-import 'cf_verify_page.dart';
 import 'source_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_sheet.dart';
@@ -205,65 +203,10 @@ class MinePage extends StatelessWidget {
   /// 和书源行里的「浏览器过验证」是同一套管道，区别只是这里不依赖具体书源：
   /// 站点还没写成规则、或者规则里的 host 和你想验证的 host 不一致时用这个。
   Future<void> _openCfVerify(BuildContext context, AppState state) async {
-    final TextEditingController ctrl = TextEditingController(text: 'https://');
-    final String? input = await showDialog<String>(
-      context: context,
-      builder: (BuildContext c) => AlertDialog(
-        title: const Text('浏览器过验证'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(
-            labelText: '站点地址',
-            hintText: 'https://18comic.vip/',
-          ),
-          onSubmitted: (String v) => Navigator.of(c).pop(v),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(c).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(c).pop(ctrl.text),
-            child: const Text('打开'),
-          ),
-        ],
-      ),
-    );
-    final Uri? uri = Uri.tryParse(input?.trim() ?? '');
-    if (uri == null || uri.host.isEmpty) return;
-    if (!context.mounted) return;
-    final List<ImportedCookie>? cookies =
-        await Navigator.of(context).push<List<ImportedCookie>>(
-      fadeSlideRoute<List<ImportedCookie>>(
-        CfVerifyPage(startUrl: uri.toString(), host: uri.host),
-      ),
-    );
-    if (cookies == null || cookies.isEmpty) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('这个平台没能取到 Cookie。改走「粘贴 Cookie」：'
-              '用 Edge 打开站点过验证 → F12 → Application → Cookies → 复制 cf_clearance'),
-          duration: Duration(seconds: 8),
-        ),
-      );
-      return;
-    }
-    final int n = await state.engine.http.importCookies(uri.host, cookies);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          n > 0
-              ? '已保存 $n 条 Cookie（${uri.host}），有效期跟随站点'
-              : 'Cookie 没保存成功',
-        ),
-      ),
-    );
+    // 内置 WebView 在部分平台取不到站点 Cookie，统一改走手动粘贴。
+    await _pasteCookie(context, state);
   }
+
 
 
   /// 手动粘贴 Cookie：内置浏览器打不开站点（DNS 被污染、WebView 起不来）时的后路。
