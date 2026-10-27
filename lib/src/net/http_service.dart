@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -64,6 +66,102 @@ class HttpService {
   final Duration? timeout;
 
   CookieJar get cookieJar => _jar;
+
+  /// 见过的域名：Cookie 落盘时按域名逐个导出。
+  final Set<String> _hosts = <String>{};
+
+  /// Cookie 落盘路径。设了才持久化（App 启动时设成 appSupport/cookies.json）。
+  ///
+  /// 为什么值得存：Cloudflare 的 `cf_clearance`、站点登录态、搜索 session
+  /// 都是一次性拿到的，丢掉就得重新过验证/重新登录。存下来下次启动直接复用，
+  /// 直到它自己过期。
+  String? cookieFile;
+
+  /// 收到 Set-Cookie 时回调（App 层用来节流落盘）。
+  void Function()? onCookiesChanged;
+
+  Future<void> loadCookies() async {
+    final String? path = cookieFile;
+    if (path == null) return;
+    try {
+      final File f = File(path);
+      if (!await f.exists()) return;
+      final Object? decoded = jsonDecode(await f.readAsString());
+      if (decoded is! List) return;
+      final Map<String, List<Cookie>> byHost = <String, List<Cookie>>{};
+      for (final Object? item in decoded) {
+        if (item is! Map) continue;
+        final String host = '${item['host'] ?? ''}';
+        final String name = '${item['name'] ?? ''}';
+        if (host.isEmpty || name.isEmpty) continue;
+        final Cookie c = Cookie(name, '${item['value'] ?? ''}');
+        final Object? domain = item['domain'];
+        if (domain is String && domain.isNotEmpty) c.domain = domain;
+        final Object? cpath = item['path'];
+        if (cpath is String && cpath.isNotEmpty) c.path = cpath;
+        c.secure = item['secure'] == true;
+        c.httpOnly = item['httpOnly'] == true;
+        final Object? exp = item['expires'];
+        if (exp is int) c.expires = DateTime.fromMillisecondsSinceEpoch(exp);
+        byHost.putIfAbsent(host, () => <Cookie>[]).add(c);
+        _hosts.add(host);
+      }
+      for (final MapEntry<String, List<Cookie>> e in byHost.entries) {
+        await _jar.saveFromResponse(Uri.parse('https://${e.key}/'), e.value);
+      }
+    } on Object {
+      // Cookie 文件坏了不该拦住启动。
+    }
+  }
+
+  Future<void> saveCookies() async {
+    final String? path = cookieFile;
+    if (path == null || _hosts.isEmpty) return;
+    try {
+      final List<Map<String, Object?>> out = <Map<String, Object?>>[];
+      for (final String host in _hosts) {
+        final List<Cookie> list =
+            await _jar.loadForRequest(Uri.parse('https://$host/'));
+        for (final Cookie c in list) {
+          out.add(<String, Object?>{
+            'host': host,
+            'domain': c.domain,
+            'path': c.path,
+            'name': c.name,
+            'value': c.value,
+            'expires': c.expires?.millisecondsSinceEpoch,
+            'secure': c.secure,
+            'httpOnly': c.httpOnly,
+          });
+        }
+      }
+      final File f = File(path);
+      await f.parent.create(recursive: true);
+      await f.writeAsString(jsonEncode(out));
+    } on Object {
+      // 落盘失败不影响主流程。
+    }
+  }
+
+  /// 响应是不是 Cloudflare / 人机验证页。
+  static bool looksLikeChallenge(String text, Headers headers) {
+    if ((headers.value('cf-mitigated') ?? '').toLowerCase() == 'challenge') {
+      return true;
+    }
+    final String head =
+        text.length > 4096 ? text.substring(0, 4096) : text;
+    final String low = head.toLowerCase();
+    if (low.contains('just a moment') ||
+        low.contains('cf-browser-verification') ||
+        low.contains('cf_chl_opt') ||
+        low.contains('checking your browser') ||
+        low.contains('enable javascript and cookies to continue')) {
+      return true;
+    }
+    final String server = (headers.value('server') ?? '').toLowerCase();
+    return server.contains('cloudflare') &&
+        (low.contains('attention required') || low.contains('access denied'));
+  }
 
   Future<HttpResult> request(
     String url, {
@@ -156,6 +254,21 @@ class HttpService {
         Uint8List.fromList(data),
         declared: charset ?? CharsetUtil.charsetFromContentType(contentType),
       );
+
+      // 记录域名 + 提示 Cookie 有更新（App 层节流落盘）
+      _hosts.add(uri.host);
+      if (resp.headers.value('set-cookie') != null) onCookiesChanged?.call();
+
+      final int code = resp.statusCode ?? 0;
+      if ((code == 403 || code == 503 || code == 429) &&
+          looksLikeChallenge(text, resp.headers)) {
+        throw RuleException(
+          '站点要求人机验证（Cloudflare），不是规则的问题',
+          detail: '${uri.host} 返回了验证页。用浏览器打开该站过掉验证后，'
+              '把 Cookie（如 cf_clearance=...）填进书源 JSON 的 header 里，'
+              '墨町会把它存到本地复用，直到过期为止。',
+        );
+      }
 
       return HttpResult(
         body: text,

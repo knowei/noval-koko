@@ -22,6 +22,32 @@ class TextUtil {
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
       };
 
+  /// 图床镜像组：包子系图床会轮换前缀，一个挂掉就换下一个。
+  static const List<List<String>> _imageMirrorGroups = <List<String>>[
+    <String>[
+      'c-nd2-1.6wm.top',
+      'c-nd3-1.6wm.top',
+      'c-nc-1.6wm.top',
+      'c-nc-2.6wm.top',
+    ],
+    <String>['t-nd2-1.6wm.top', 't-nd3-1.6wm.top'],
+  ];
+
+  /// 同一张图的镜像候选（第一个永远是原地址）。用于图床单点挂掉时兜底。
+  static List<String> imageUrlVariants(String url) {
+    final List<String> out = <String>[url];
+    final Uri? uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return out;
+    for (final List<String> group in _imageMirrorGroups) {
+      if (!group.contains(uri.host)) continue;
+      for (final String host in group) {
+        if (host == uri.host) continue;
+        out.add(uri.replace(host: host).toString());
+      }
+    }
+    return out;
+  }
+
   static final RegExp _entityRe =
       RegExp(r'&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);');
   static final RegExp _spacesRe = RegExp(r'[ \t\u00a0\u3000]+');

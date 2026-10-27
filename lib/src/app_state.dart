@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'core/html_text.dart';
 import 'db/database.dart';
@@ -93,6 +96,7 @@ class AppState extends ChangeNotifier {
     shelfRepo = ShelfRepo();
     sourceRepo = SourceRepo();
     engine = SourceEngine();
+    await _attachCookieStore();
 
     await reloadSources();
     await reloadShelf();
@@ -108,6 +112,26 @@ class AppState extends ChangeNotifier {
     if (savedTheme != null && savedTheme.isNotEmpty) themeId = themeById(savedTheme).id;
     ready = true;
     notifyListeners();
+  }
+
+  /// Cookie 存磁盘：cf_clearance、登录态这类东西拿一次就够了，
+  /// 存下来下次启动直接复用，不用再让人去浏览器里重新过验证。
+  Timer? _cookieTimer;
+
+  Future<void> _attachCookieStore() async {
+    try {
+      final Directory dir = await getApplicationSupportDirectory();
+      engine.http.cookieFile = '${dir.path}/cookies.json';
+      await engine.http.loadCookies();
+      engine.http.onCookiesChanged = () {
+        _cookieTimer?.cancel();
+        _cookieTimer = Timer(const Duration(seconds: 3), () {
+          engine.http.saveCookies();
+        });
+      };
+    } on Object {
+      // 拿不到目录就退化成纯内存 Cookie，不影响功能。
+    }
   }
 
   Future<void> reloadSources() async {

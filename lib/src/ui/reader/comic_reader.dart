@@ -353,13 +353,37 @@ class _ComicReaderPageState extends State<ComicReaderPage> {
   }
 }
 
-class _ComicImage extends StatelessWidget {
+class _ComicImage extends StatefulWidget {
   const _ComicImage({required this.url});
 
   final String url;
 
   @override
+  State<_ComicImage> createState() => _ComicImageState();
+}
+
+class _ComicImageState extends State<_ComicImage> {
+  /// 图床镜像下标：这张图失败了就换镜像域名再试一次。
+  int _mirror = 0;
+
+  @override
+  void didUpdateWidget(covariant _ComicImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _mirror = 0;
+  }
+
+  void _tryNextMirror(List<String> variants) {
+    if (_mirror + 1 >= variants.length) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _mirror += 1);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final List<String> variants = TextUtil.imageUrlVariants(widget.url);
+    final String url = variants[_mirror.clamp(0, variants.length - 1)];
     return Image.network(
       url,
       headers: TextUtil.imageHeaders(url),
@@ -406,6 +430,7 @@ class _ComicImage extends StatelessWidget {
       },
       errorBuilder:
           (BuildContext context, Object error, StackTrace? stackTrace) {
+        _tryNextMirror(variants);
         return Container(
           height: 160,
           alignment: Alignment.center,

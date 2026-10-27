@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../model/book_source.dart';
+import '../net/net_diag.dart';
+import '../net/net_diag_page.dart';
 import 'motion.dart';
 import 'theme/app_theme.dart';
 import 'widgets.dart';
@@ -196,6 +198,15 @@ class _SourcePageState extends State<SourcePage> {
             ),
             const Divider(height: 1),
             ListTile(
+              leading: const Icon(Icons.wifi_tethering),
+              title: const Text('网络诊断'),
+              subtitle: const Text('看这个源的域名在你这儿通不通'),
+              onTap: () {
+                Navigator.of(c).pop();
+                _openNetDiag(s);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.data_object),
               title: const Text('查看 JSON'),
               onTap: () {
@@ -214,6 +225,21 @@ class _SourcePageState extends State<SourcePage> {
             ),
             const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _openNetDiag(BookSource s) {
+    final String json = const JsonEncoder.withIndent('  ').convert(s.toJson());
+    final List<String> hosts = NetDiag.hostsOf(<String>[s.url, json]);
+    Navigator.of(context).push(
+      fadeSlideRoute<void>(
+        NetDiagPage(
+          title: '网络诊断 · ${s.name}',
+          hosts: hosts,
+          note: '该源用到的站点 / 接口 / 图床域名，逐个探 DNS → TCP → HTTP。'
+              '✗ 表示在你这儿的网络里不通，规则再对也取不到数据。',
         ),
       ),
     );

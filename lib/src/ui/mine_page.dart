@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../core/version.dart';
+import '../model/book_source.dart';
 import '../model/shelf_book.dart';
+import '../net/net_diag.dart';
+import '../net/net_diag_page.dart';
 import 'source_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_sheet.dart';
@@ -82,6 +87,17 @@ class MinePage extends StatelessWidget {
                 AppCard(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpace.lg, vertical: AppSpace.md),
+                  onTap: () => _openNetDiag(context, state),
+                  child: _Entry(
+                    icon: Icons.wifi_tethering,
+                    title: '网络诊断',
+                    subtitle: '全部书源的域名逐个探一遍：通了才谈得上解析',
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.lg, vertical: AppSpace.md),
                   child: _Entry(
                     icon: Icons.bookmark_added_outlined,
                     title: '本地导入',
@@ -131,6 +147,30 @@ class MinePage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 把所有书源里出现过的域名抓出来逐个探一遍。
+  void _openNetDiag(BuildContext context, AppState state) {
+    final List<String> texts = <String>[];
+    for (final BookSource s in state.sources) {
+      texts.add(s.url);
+      try {
+        texts.add(jsonEncode(s.raw));
+      } on Object {
+        texts.add(s.searchUrl);
+      }
+    }
+    final List<String> hosts = NetDiag.hostsOf(texts);
+    Navigator.of(context).push<void>(
+      fadeSlideRoute(
+        NetDiagPage(
+          title: '网络诊断',
+          hosts: hosts,
+          note: '按书源里出现的域名逐个试：先解析 DNS，再请求首页。'
+              '全红说明网络到不了站点（多半要代理），红黄相间多半是站点侧反爬。',
+        ),
       ),
     );
   }

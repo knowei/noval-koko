@@ -9,7 +9,7 @@ String coverHeroTag(String sourceUrl, String bookUrl) =>
     'cover:$sourceUrl|$bookUrl';
 
 /// 书籍封面：3:4、圆角、无图兜底。
-class BookCover extends StatelessWidget {
+class BookCover extends StatefulWidget {
   const BookCover({
     super.key,
     required this.url,
@@ -31,10 +31,37 @@ class BookCover extends StatelessWidget {
   /// 右上角角标（进度之类）。
   final String? badge;
 
-  double get _height => height ?? width * 4 / 3;
+  @override
+  State<BookCover> createState() => _BookCoverState();
+}
+
+class _BookCoverState extends State<BookCover> {
+  /// 图床镜像下标：一张图失败就换镜像域名重试。
+  int _mirror = 0;
+
+  @override
+  void didUpdateWidget(covariant BookCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _mirror = 0;
+  }
+
+  double get _height => widget.height ?? widget.width * 4 / 3;
+
+  void _tryNextMirror(List<String> variants) {
+    if (_mirror + 1 >= variants.length) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _mirror += 1);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final double width = widget.width;
+    final String url = widget.url;
+    final String name = widget.name;
+    final double radius = widget.radius;
+    final String? badge = widget.badge;
     final AppPalette p = context.palette;
 
     final Widget fallback = Container(
@@ -52,11 +79,17 @@ class BookCover extends StatelessWidget {
       ),
     );
 
-    final Widget image = url.trim().isEmpty
+    final List<String> variants =
+        url.trim().isEmpty ? const <String>[] : TextUtil.imageUrlVariants(url);
+    final String imageUrl = variants.isEmpty
+        ? url
+        : variants[_mirror.clamp(0, variants.length - 1)];
+
+    final Widget image = variants.isEmpty
         ? fallback
         : CachedNetworkImage(
-            imageUrl: url,
-            httpHeaders: TextUtil.imageHeaders(url),
+            imageUrl: imageUrl,
+            httpHeaders: TextUtil.imageHeaders(imageUrl),
             width: width,
             height: _height,
             fit: BoxFit.cover,
@@ -66,7 +99,10 @@ class BookCover extends StatelessWidget {
               height: _height,
               color: p.surfaceAlt,
             ),
-            errorWidget: (BuildContext c, String u, Object e) => fallback,
+            errorWidget: (BuildContext c, String u, Object e) {
+              _tryNextMirror(variants);
+              return fallback;
+            },
           );
 
 
@@ -79,7 +115,7 @@ class BookCover extends StatelessWidget {
           fit: StackFit.expand,
           children: <Widget>[
             image,
-            if (badge != null && badge!.isNotEmpty)
+            if (badge != null && badge.isNotEmpty)
               Positioned(
                 top: 6,
                 right: 6,
@@ -91,7 +127,7 @@ class BookCover extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    badge!,
+                    badge,
                     style: const TextStyle(
                       fontSize: 10,
                       height: 1.1,
