@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/html_text.dart';
+import 'core/rule_exception.dart';
+import 'core/text_util.dart';
 import 'db/database.dart';
 import 'db/shelf_repo.dart';
 import 'db/source_repo.dart';
@@ -14,6 +16,7 @@ import 'model/book_info.dart';
 import 'model/book_source.dart';
 import 'model/search_book.dart';
 import 'model/shelf_book.dart';
+import 'model/source_subscription.dart';
 import 'source/source_engine.dart';
 import 'ui/theme/app_theme.dart';
 
@@ -100,6 +103,7 @@ class AppState extends ChangeNotifier {
 
     await reloadSources();
     await reloadShelf();
+    await reloadSubscriptions();
 
     final String? prefsJson = await shelfRepo.getSetting('read_prefs');
     if (prefsJson != null && prefsJson.isNotEmpty) {
@@ -142,6 +146,114 @@ class AppState extends ChangeNotifier {
   Future<void> reloadShelf() async {
     shelf = await shelfRepo.all();
     notifyListeners();
+  }
+
+  // ------------------------------------------------------------ 书源订阅
+
+  static const String _subscriptionKey = 'source_subscriptions';
+
+  List<SourceSubscription> subscriptions = <SourceSubscription>[];
+
+  Future<void> reloadSubscriptions() async {
+    final String? raw = await shelfRepo.getSetting(_subscriptionKey);
+    if (raw == null || raw.trim().isEmpty) {
+      subscriptions = <SourceSubscription>[];
+      notifyListeners();
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      subscriptions = decoded is List
+          ? decoded
+              .whereType<Map<String, dynamic>>()
+              .map(SourceSubscription.fromJson)
+              .where((SourceSubscription s) => s.url.isNotEmpty)
+              .toList()
+          : <SourceSubscription>[];
+    } on Object {
+      subscriptions = <SourceSubscription>[];
+    }
+    notifyListeners();
+  }
+
+  Future<void> _persistSubscriptions() async {
+    await shelfRepo.setSetting(
+      _subscriptionKey,
+      jsonEncode(subscriptions
+          .map((SourceSubscription s) => s.toJson())
+          .toList(growable: false)),
+    );
+    notifyListeners();
+  }
+
+  /// 拉一个订阅地址，把里面的书源写进库。返回一句给人看的结论文本。
+  Future<String> syncSubscription(SourceSubscription sub) async {
+    final String url = sub.url.trim();
+    if (url.isEmpty) return '订阅地址是空的';
+    String body;
+    try {
+      final res = await engine.http.request(
+        url,
+        headers: <String, String>{
+          'User-Agent': TextUtil.userAgent,
+          'Accept': 'application/json, text/plain, */*',
+        },
+      );
+      if (!res.isOk) return '拉取失败：HTTP ${res.statusCode}';
+      body = res.body;
+    } on RuleException catch (e) {
+      return '拉取失败：${e.message}';
+    }
+
+    final List<BookSource> parsed = SourceRepo.parseSources(body);
+    if (parsed.isEmpty) return '这个地址里没解析出书源（可能不是书源 JSON）';
+
+    // 已有书源保留用户的启用/停用选择
+    final Map<String, bool> keepEnabled = <String, bool>{
+      for (final BookSource s in sources) s.url: s.enabled,
+    };
+    final List<BookSource> toSave = <BookSource>[
+      for (final BookSource s in parsed)
+        keepEnabled.containsKey(s.url) && keepEnabled[s.url] != s.enabled
+            ? s.copyWithEnabled(keepEnabled[s.url]!)
+            : s,
+    ];
+    final int n = await sourceRepo.saveAll(toSave);
+
+    final int idx = subscriptions.indexWhere((SourceSubscription s) => s.url == url);
+    final SourceSubscription updated = SourceSubscription(
+      url: url,
+      name: sub.name.trim().isNotEmpty
+          ? sub.name.trim()
+          : (parsed.first.name.isNotEmpty ? parsed.first.name : sub.displayName),
+      count: n,
+      lastSync: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (idx >= 0) {
+      subscriptions[idx] = updated;
+    } else {
+      subscriptions.add(updated);
+    }
+    await _persistSubscriptions();
+    await reloadSources();
+    return '「${updated.displayName}」已更新 $n 个书源';
+  }
+
+  Future<String> addSubscription(String url) async {
+    final String clean = url.trim();
+    if (clean.isEmpty) return '订阅地址是空的';
+    if (!clean.startsWith('http')) return '订阅地址要以 http 开头';
+    if (subscriptions.any((SourceSubscription s) => s.url == clean)) {
+      return '这个地址已经订阅过了';
+    }
+    subscriptions.add(SourceSubscription(url: clean));
+    await _persistSubscriptions();
+    return syncSubscription(SourceSubscription(url: clean));
+  }
+
+  Future<void> removeSubscription(String url) async {
+    subscriptions.removeWhere((SourceSubscription s) => s.url == url);
+    await _persistSubscriptions();
   }
 
   List<BookSource> get enabledSources =>

@@ -105,6 +105,12 @@ class SourceRepo {
           collect(e);
         }
       } else if (node is Map) {
+        // Legado 的分享 / 订阅格式会包一层：{"bookSources":[...]}
+        final Object? nested = node['bookSources'] ?? node['sources'];
+        if (nested is List && !node.containsKey('bookSourceUrl')) {
+          collect(nested);
+          return;
+        }
         rawList.add(node.map((Object? k, Object? v) =>
             MapEntry<String, dynamic>(k.toString(), v)));
       }

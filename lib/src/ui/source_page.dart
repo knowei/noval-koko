@@ -10,6 +10,7 @@ import '../model/book_source.dart';
 import '../net/net_diag.dart';
 import '../net/net_diag_page.dart';
 import 'motion.dart';
+import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'widgets.dart';
 
@@ -345,6 +346,12 @@ class _SourcePageState extends State<SourcePage> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                _HeaderAction(
+                  icon: Icons.rss_feed,
+                  onTap: () => Navigator.of(context).push<void>(
+                    fadeSlideRoute(const SubscriptionPage()),
+                  ),
+                ),
                 _HeaderAction(
                   icon: Icons.add_circle_outline,
                   onTap: () => _showImportMenu(),

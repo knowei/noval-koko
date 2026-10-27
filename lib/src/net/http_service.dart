@@ -30,8 +30,12 @@ class HttpResult {
 
 /// 统一的网络层：自动处理编码、Cookie、重定向、超时与「按域名限速」。
 class HttpService {
-  HttpService({CookieJar? cookieJar, RateLimiter? limiter, this.timeout})
-      : limiter = limiter ?? RateLimiter() {
+  HttpService({
+    CookieJar? cookieJar,
+    RateLimiter? limiter,
+    this.timeout,
+    HttpClientAdapter? adapter,
+  }) : limiter = limiter ?? RateLimiter() {
     _dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 15),
@@ -53,6 +57,8 @@ class HttpService {
     );
     _jar = cookieJar ?? CookieJar();
     _dio.interceptors.add(CookieManager(_jar));
+    // 测试时灌一个假传输层，不打真网络。
+    if (adapter != null) _dio.httpClientAdapter = adapter;
   }
 
   late final Dio _dio;

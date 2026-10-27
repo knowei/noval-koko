@@ -325,6 +325,67 @@ class BookSource {
   bool get canSearch => searchUrl.trim().isNotEmpty;
   bool get hasExplore => exploreUrl.trim().isNotEmpty;
 
+  /// 只换启用状态，其余原样（订阅更新时保留用户自己的开关）。
+  BookSource copyWithEnabled(bool value) => BookSource(
+        url: url,
+        name: name,
+        type: type,
+        group: group,
+        enabled: value,
+        weight: weight,
+        comment: comment,
+        searchUrl: searchUrl,
+        exploreUrl: exploreUrl,
+        header: header,
+        loginUrl: loginUrl,
+        jsLib: jsLib,
+        bookUrlPattern: bookUrlPattern,
+        enabledExplore: enabledExplore,
+        enabledCookieJar: enabledCookieJar,
+        concurrentRate: concurrentRate,
+        lastUpdateTime: lastUpdateTime,
+        ruleSearch: ruleSearch,
+        ruleExplore: ruleExplore,
+        ruleBookInfo: ruleBookInfo,
+        ruleToc: ruleToc,
+        ruleContent: ruleContent,
+        raw: raw,
+      );
+
+  /// 镜像站地址（我们自己扩展的字段 `mirrors`，Legado 导出里没有）。
+  ///
+  /// 同一个站常有多个域名轮换，主域被墙时按顺序换下一个；
+  /// 内置了几组已知的对照组，书源 JSON 里写 `mirrors` 可以覆盖。
+  List<String> get mirrors {
+    final Object? declared = raw['mirrors'];
+    if (declared is List) {
+      return declared
+          .map((Object? e) => '$e'.trim())
+          .where((String s) => s.isNotEmpty && s != url)
+          .toList();
+    }
+    if (declared is String && declared.trim().isNotEmpty) {
+      return declared
+          .split(RegExp(r'[\s,]+'))
+          .map((String s) => s.trim())
+          .where((String s) => s.isNotEmpty && s != url)
+          .toList();
+    }
+    final String host = Uri.tryParse(url)?.host ?? '';
+    return <String>[
+      for (final String m in _builtinMirrors[host] ?? const <String>[])
+        if (m != url && m != 'https://$host') m,
+    ];
+  }
+
+  /// 已知镜像组（实测用过的那几组）。
+  static const Map<String, List<String>> _builtinMirrors =
+      <String, List<String>>{
+    'baozimh.org': <String>['https://bzmh.org'],
+    'bzmh.org': <String>['https://baozimh.org'],
+    'www.baozimh.com': <String>['https://baozimh.org', 'https://bzmh.org'],
+  };
+
   factory BookSource.fromJson(Map<String, dynamic> j) {
     final Map<String, String> header = <String, String>{};
     _map(j, 'header').forEach((String k, Object? v) {

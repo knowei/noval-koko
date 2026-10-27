@@ -38,6 +38,78 @@ class SourceEngine {
   final Map<String, Map<String, String>> _headerCache =
       <String, Map<String, String>>{};
 
+  /// 每个书源当前生效的镜像地址（key 用书源原始 url）。空 = 用原地址。
+  ///
+  /// 为什么要记：同一个站常有好几个域名（bzmh.org / baozimh.org …），
+  /// 某一个被墙了就换下一个；换成功之后整轮操作都继续用它，
+  /// 免得每页都先撞一次墙。
+  final Map<String, String> _activeMirror = <String, String>{};
+
+  /// 当前生效的镜像（没有就是空串）。
+  String activeMirrorOf(BookSource source) => _activeMirror[source.url] ?? '';
+
+  void resetMirror(BookSource source) => _activeMirror.remove(source.url);
+
+  /// 把 url 里的原站主机名换成镜像主机名。
+  static String swapHost(String url, String fromBase, String toBase) {
+    final Uri? from = Uri.tryParse(fromBase.trim());
+    final Uri? to = Uri.tryParse(toBase.trim());
+    if (from == null || to == null) return url;
+    if (from.host.isEmpty || to.host.isEmpty) return url;
+    if (from.host == to.host) return url;
+    return url.replaceAll(from.host, to.host);
+  }
+
+  /// 网络层面的失败才值得换镜像；规则写错了换多少次都一样。
+  static bool _isNetworkFailure(RuleException e) =>
+      e.message.contains('网络请求失败') ||
+      e.message.contains('超时') ||
+      e.message.contains('人机验证') ||
+      e.message.contains('连接');
+
+  /// 带镜像回退的请求：先试当前生效地址，网络失败就按 `mirrors` 顺序换下一个。
+  Future<HttpResult> _fetch(
+    BookSource source,
+    String url, {
+    String method = 'GET',
+    Map<String, String>? headers,
+    String? body,
+    Map<String, dynamic>? query,
+    String? charset,
+  }) async {
+    final List<String> order = <String>[
+      if (_activeMirror[source.url] != null) _activeMirror[source.url]!,
+      source.url,
+      ...source.mirrors,
+    ];
+    final List<String> tried = <String>[];
+    RuleException? last;
+    for (final String base in order) {
+      final String target = swapHost(url, source.url, base);
+      if (tried.contains(target)) continue;
+      tried.add(target);
+      try {
+        final HttpResult res = await http.request(
+          target,
+          method: method,
+          headers: headers,
+          body: body,
+          query: query,
+          charset: charset,
+        );
+        if (base.trim().isNotEmpty && base.trim() != source.url) {
+          _activeMirror[source.url] = base.trim();
+        }
+        return res;
+      } on RuleException catch (e) {
+        last = e;
+        if (!_isNetworkFailure(e)) rethrow;
+      }
+    }
+    throw last ??
+        RuleException('请求失败', detail: '书源 ${source.name} 没有可用地址');
+  }
+
   void dispose() {
     js.dispose();
     http.dispose();
@@ -119,7 +191,8 @@ class SourceEngine {
     final Map<String, String> headers = await headersOf(source);
     final _RequestSpec spec = await _buildSearchRequest(source, key, page);
 
-    final HttpResult res = await http.request(
+    final HttpResult res = await _fetch(
+      source,
       spec.url,
       method: spec.method,
       body: spec.body,
@@ -215,7 +288,7 @@ class SourceEngine {
   }) async {
     resetJs();
     final Map<String, String> headers = await headersOf(source);
-    final HttpResult res = await http.request(bookUrl, headers: headers);
+    final HttpResult res = await _fetch(source, bookUrl, headers: headers);
     if (!res.isOk) {
       throw RuleException('打开书籍失败：HTTP ${res.statusCode}');
     }
@@ -275,7 +348,7 @@ class SourceEngine {
       if (!visited.add(next)) break;
       page++;
 
-      final HttpResult res = await http.request(next, headers: headers);
+      final HttpResult res = await _fetch(source, next, headers: headers);
       if (!res.isOk) break;
       final RuleContext ctx = RuleContext.page(
         res.body,
@@ -342,7 +415,7 @@ class SourceEngine {
       if (!visited.add(url)) break;
       page++;
 
-      final HttpResult res = await http.request(url, headers: headers);
+      final HttpResult res = await _fetch(source, url, headers: headers);
       if (!res.isOk) {
         throw RuleException('加载章节失败：HTTP ${res.statusCode}');
       }
