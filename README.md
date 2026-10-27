@@ -455,6 +455,7 @@ flutter test integration_test/curated_sources_test.dart -d windows
 | 🧩漫画 | 包子漫画·镜像 `bzmh.org` | 漫画 | 9 条（斗罗大陆） | 605 章 | 单章 36 张图（同款解密器） |
 | 📚出版物 | 可阅文学网 `www.kepub.net` | 小说 | 1 条（山雨） | 29 章 | 2 万字级（`<br>` 分段） |
 | 📚出版物 | 麦归文学 `www.maiguiread.com` | 小说 | 1 条（解忧杂货店） | 5 章 | 28512 字 |
+| 🧩漫画 | MangaDex `api.mangadex.org` | 漫画（日漫） | 8 条（チェンソー） | 6 章 | 单章 34 张图（@Home 节点） |
 
 几个踩过的坑，改源前值得看一眼：
 

@@ -601,5 +601,56 @@
       "imageStyle": ""
     },
     "ruleExplore": {}
+  },
+  {
+    "bookSourceName": "MangaDex",
+    "bookSourceGroup": "🧩漫画",
+    "bookSourceType": 2,
+    "bookSourceUrl": "https://api.mangadex.org",
+    "bookSourceComment": "MangaDex（日漫为主，官方 API）：搜索/详情/目录/图片全走 api.mangadex.org，图片走 @Home 节点。中文翻译覆盖率低，没有中文时自动退到英文。",
+    "enabled": true,
+    "enabledExplore": false,
+    "enabledCookieJar": false,
+    "customOrder": 0,
+    "weight": 0,
+    "lastUpdateTime": 0,
+    "respondTime": 180000,
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36\", \"Accept\": \"application/json, text/plain, */*\", \"Accept-Language\": \"zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7\"}",
+    "loginUrl": "",
+    "loginCheckJs": "",
+    "bookUrlPattern": "",
+    "concurrentRate": "800/1",
+    "searchUrl": "https://api.mangadex.org/manga?title={{key}}&limit=20&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive&originalLanguage[]=ja&order[relevance]=desc",
+    "ruleSearch": {
+      "bookList": "@Json:$.data[*]",
+      "name": "@js:(function(){var a=JSON.parse(result).attributes||{};var t=a.title||{};var alt=a.altTitles||[];var od=['zh','zh-hk','ja','ja-ro','en'];for(var i=0;i<od.length;i++){if(t[od[i]]){return t[od[i]];}}for(var j=0;j<alt.length;j++){for(var k=0;k<od.length;k++){if(alt[j][od[k]]){return alt[j][od[k]];}}}return '未命名';})()",
+      "author": "@js:(function(){var d=JSON.parse(result);var rel=d.relationships||[];for(var i=0;i<rel.length;i++){if(rel[i].type==='author'&&rel[i].attributes&&rel[i].attributes.name){return rel[i].attributes.name;}}return '';})()",
+      "intro": "@js:(function(){var a=JSON.parse(result).attributes||{};var d=a.description||{};return d.zh||d['zh-hk']||d.en||'';})()",
+      "kind": "@js:(function(){var a=JSON.parse(result).attributes||{};var tg=a.tags||[];var out=[];for(var i=0;i<tg.length;i++){var n=(tg[i].attributes&&tg[i].attributes.name)||{};if(n.zh){out.push(n.zh);}else if(n.en){out.push(n.en);}}return out.join(' ');})()",
+      "lastChapter": "@js:(function(){var a=JSON.parse(result).attributes||{};return a.lastChapter||'';})()",
+      "bookUrl": "@js:'https://api.mangadex.org/manga/'+JSON.parse(result).id+'?includes[]=cover_art&includes[]=author'",
+      "coverUrl": "@js:(function(){var d=JSON.parse(result);var rel=d.relationships||[];for(var i=0;i<rel.length;i++){if(rel[i].type==='cover_art'&&rel[i].attributes&&rel[i].attributes.fileName){return 'https://uploads.mangadex.org/covers/'+d.id+'/'+rel[i].attributes.fileName+'.256.jpg';}}return '';})()"
+    },
+    "ruleBookInfo": {
+      "name": "@js:(function(){var a=JSON.parse(result).data.attributes||{};var t=a.title||{};var alt=a.altTitles||[];var od=['zh','zh-hk','ja','ja-ro','en'];for(var i=0;i<od.length;i++){if(t[od[i]]){return t[od[i]];}}for(var j=0;j<alt.length;j++){for(var k=0;k<od.length;k++){if(alt[j][od[k]]){return alt[j][od[k]];}}}return '未命名';})()",
+      "author": "@js:(function(){var d=JSON.parse(result).data;var rel=d.relationships||[];for(var i=0;i<rel.length;i++){if(rel[i].type==='author'&&rel[i].attributes&&rel[i].attributes.name){return rel[i].attributes.name;}}return '';})()",
+      "intro": "@js:(function(){var a=JSON.parse(result).data.attributes||{};var d=a.description||{};return d.zh||d['zh-hk']||d.en||'';})()",
+      "kind": "@js:(function(){var a=JSON.parse(result).data.attributes||{};var tg=a.tags||[];var out=[];for(var i=0;i<tg.length;i++){var n=(tg[i].attributes&&tg[i].attributes.name)||{};if(n.zh){out.push(n.zh);}else if(n.en){out.push(n.en);}}return out.join(' ');})()",
+      "lastChapter": "@js:(function(){var a=JSON.parse(result).data.attributes||{};return a.lastChapter||'';})()",
+      "coverUrl": "@js:(function(){var d=JSON.parse(result).data;var rel=d.relationships||[];for(var i=0;i<rel.length;i++){if(rel[i].type==='cover_art'&&rel[i].attributes&&rel[i].attributes.fileName){return 'https://uploads.mangadex.org/covers/'+d.id+'/'+rel[i].attributes.fileName+'.256.jpg';}}return '';})()",
+      "tocUrl": "@js:(function(){var id=JSON.parse(result).data.id;var head='https://api.mangadex.org/manga/'+id+'/feed?';var zh='translatedLanguage[]=zh&translatedLanguage[]=zh-hk';var probe=java.ajax(head+'limit=1&'+zh);var n=0;try{n=(JSON.parse(probe).total)||0;}catch(e){n=0;}var langs=n>0?zh:'translatedLanguage[]=en';return head+'limit=500&order[chapter]=asc&'+langs;})()",
+      "wordCount": ""
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function(){var j=JSON.parse(result);var data=(j.data||[]).slice();var total=j.total||data.length;var url=baseUrl;var off=500;while(data.length<total&&off<2000){var sep=url.indexOf('?')>=0?'&':'?';var more=java.ajax(url+sep+'offset='+off);var arr=[];try{arr=(JSON.parse(more).data)||[];}catch(e){arr=[];}if(!arr.length){break;}for(var i=0;i<arr.length;i++){data.push(arr[i]);}off+=500;}var out=[];for(var k=0;k<data.length;k++){var c=data[k];var a=c.attributes||{};if(a.externalUrl){continue;}if(!(a.pages>0)){continue;}var num=a.chapter||'';var ti=a.title||'';var label=(num?('第'+num+'话'):'番外')+(ti?(' '+ti):'');out.push('<a href=\"https://mangadex.org/chapter/'+c.id+'\">'+label.replace(/[<>]/g,'')+'</a>');}return out;})()",
+      "chapterName": "@css:a@text",
+      "chapterUrl": "@css:a@href"
+    },
+    "ruleContent": {
+      "content": "@js:(function(){var id=String(baseUrl).split('/chapter/')[1]||'';id=id.split(/[\\/?#]/)[0];if(!id){return '';}var raw=java.ajax('https://api.mangadex.org/at-home/server/'+id);var o=JSON.parse(raw);var ch=o.chapter||{};var files=ch.dataSaver||ch.data||[];var out=[];for(var i=0;i<files.length;i++){out.push('<img src=\"'+o.baseUrl+'/data-saver/'+ch.hash+'/'+files[i]+'\">');}return out.join('');})()",
+      "nextContentUrl": "",
+      "imageStyle": ""
+    },
+    "ruleExplore": {}
   }
 ]

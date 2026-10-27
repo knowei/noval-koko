@@ -214,6 +214,7 @@ class SourceEngine {
 
     final SearchRule rule = source.ruleSearch;
     final List<dynamic> items = await parser.evalList(rule.bookList, ctx);
+
     final List<SearchBook> out = <SearchBook>[];
     final Set<String> seen = <String>{};
 
@@ -221,6 +222,7 @@ class SourceEngine {
       final RuleContext c = ctx.child(item);
       final String name = await parser.evalString(rule.name, c);
       final String bookUrl = await parser.evalUrl(rule.bookUrl, c);
+
       if (name.isEmpty || bookUrl.isEmpty) continue;
       if (!seen.add(bookUrl)) continue;
 
@@ -246,7 +248,7 @@ class SourceEngine {
         ),
       );
     }
-    return _filterByKeyWord(out, key);
+    return _filterByKeyWord(out, key, rule);
   }
 
   /// 有些站点根本不是「按关键词搜」：查不到时会把「全部/热门/排行榜」列表返回
@@ -255,9 +257,17 @@ class SourceEngine {
   /// - 结果 ≥4 条且一条都不含关键词 → 判定「该站没有这本书」，返回空；
   /// - 有条目命中关键词 → 只保留命中的；
   /// - 结果本来就少（<4）→ 原样返回，避免误伤按作者/拼音搜索的源。
-  List<SearchBook> _filterByKeyWord(List<SearchBook> list, String key) {
+  /// - 接口型源（bookList 用 `@Json:`）跳过：那是站点自己按关键词匹配的，
+  ///   标题还可能被翻译（MangaDex 搜「チェンソー」返回 "Chainsaw Man"），
+  ///   再按字面过滤会把正确结果全杀掉。
+  List<SearchBook> _filterByKeyWord(
+    List<SearchBook> list,
+    String key,
+    SearchRule rule,
+  ) {
     final String k = key.trim();
     if (k.isEmpty || list.length < 4) return list;
+    if (rule.bookList.contains('@Json:')) return list;
     final String norm = _normalize(k);
     final List<SearchBook> hit = list
         .where((SearchBook b) =>

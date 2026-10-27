@@ -21,6 +21,9 @@ class RuleContext {
   });
 
   /// 整页 HTML 上下文。
+  ///
+  /// 接口返回 JSON 时（现在很多站点是纯 API），直接把 JSON 当节点，
+  /// 这样 `@Json:$.data[*]` 这类规则能直接吃接口返回。
   factory RuleContext.page(
     String html, {
     String baseUrl = '',
@@ -28,14 +31,26 @@ class RuleContext {
     String sourceUrl = '',
     String sourceName = '',
   }) {
-    dom.Document? doc;
-    try {
-      doc = html_parser.parse(html);
-    } catch (_) {
-      doc = null;
+    dynamic node;
+    final String trimmed = html.trimLeft();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        node = jsonDecode(trimmed);
+      } catch (_) {
+        node = null;
+      }
+    }
+    if (node == null) {
+      dom.Document? doc;
+      try {
+        doc = html_parser.parse(html);
+      } catch (_) {
+        doc = null;
+      }
+      node = doc;
     }
     return RuleContext(
-      node: doc,
+      node: node,
       pageHtml: html,
       baseUrl: baseUrl,
       headers: headers,
