@@ -158,6 +158,12 @@ class _UpdateEntryState extends State<UpdateEntry> {
       final String r = await _service.install(info, apk: apk);
       if (!mounted) return;
       _toast(r);
+    } on UpdateException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _Phase.error;
+        _message = e.message;
+      });
     } on DioException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -168,7 +174,7 @@ class _UpdateEntryState extends State<UpdateEntry> {
       if (!mounted) return;
       setState(() {
         _phase = _Phase.error;
-        _message = '下载失败：$e';
+        _message = '出错了：$e';
       });
     } finally {
       _cancel = null;

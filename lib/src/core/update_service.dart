@@ -178,11 +178,20 @@ class UpdateService {
   Future<String> install(ReleaseInfo info, {File? apk}) async {
     if (Platform.isAndroid) {
       if (apk == null) return '没有下载到 APK';
-      final String? r = await _channel.invokeMethod<String>(
-        'installApk',
-        <String, dynamic>{'path': apk.path},
-      );
-      return r ?? '已发起安装';
+      try {
+        final String? r = await _channel.invokeMethod<String>(
+          'installApk',
+          <String, dynamic>{'path': apk.path},
+        );
+        return r ?? '已发起安装';
+      } on PlatformException catch (e) {
+        // 原生侧会先比对签名：不一致时给出「先卸载旧版」的说明，
+        // 而不是把系统安装器那句「已安装了签名冲突的应用」丢给用户。
+        if (e.code == 'signature_mismatch') {
+          throw UpdateException(e.message ?? '安装包签名与已安装版本不一致');
+        }
+        throw UpdateException(e.message ?? '安装失败');
+      }
     }
     if (Platform.isWindows) {
       await Process.run('explorer', <String>[info.pageUrl]);
@@ -210,4 +219,14 @@ class UpdateService {
 
   static String prettyJson(Object? o) =>
       const JsonEncoder.withIndent('  ').convert(o);
+}
+
+/// 更新流程里的可读错误（签名冲突、安装器打不开等），UI 直接把 [message] 摆给用户看。
+class UpdateException implements Exception {
+  UpdateException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

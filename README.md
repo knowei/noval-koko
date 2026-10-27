@@ -84,6 +84,17 @@ flutter build apk --debug        # 产物 build\app\outputs\flutter-apk\app-debu
   否则 Gradle 9 对 `flutter_js`（Kotlin 1.8 / Java 11）直接报
   `Inconsistent JVM Target Compatibility`。
 
+### 签名是固定的（应用内更新必须）
+
+`android/key.properties` + `android/app/noval-release.jks` 这两份**故意提交在仓库里**：
+release 构建（本地和 GitHub Actions）都用同一把钥匙签名，APK 才能覆盖安装。
+v0.4.0 及更早的包用的是 GitHub runner 上**每次重新生成的 debug key**，
+所以每个版本的签名都不一样，升级时会报「已安装了签名冲突的应用」——
+那些版本之间只能卸载重装。从 v0.5.0 起签名固定，应用内更新可以直接覆盖。
+
+代价是这把私钥进了仓库：仓库只给自己用就别外传；要公开前先把这两个文件移出去、
+再重新生成密钥（换钥匙又意味着现有装机要卸载重装一次）。
+
 ### 自动发版：打 tag 就出 APK 到 Release
 
 `.github/workflows/release.yml`：推一个 `v*` tag（或在 Actions 页面手动 `Run workflow`）
