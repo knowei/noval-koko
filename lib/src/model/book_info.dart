@@ -77,12 +77,17 @@ class BookContent {
     this.images = const <String>[],
     this.nextUrl = '',
     this.title = '',
+    this.referer = '',
   });
 
   final String text;
   final List<String> images;
   final String nextUrl;
   final String title;
+
+  /// 拉这批图片时该带的 Referer（图床要求的站点不同，mangabz 必须带，linovelib 不能带）。
+  /// 由引擎按书源域名填，漫画阅读器读图时透传。
+  final String referer;
 
   bool get isEmpty => text.isEmpty && images.isEmpty;
 }

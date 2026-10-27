@@ -14,12 +14,16 @@ class TextUtil {
   ///   只要 UA + Accept + Accept-Language、**不带 Referer** 就 200（连测两轮稳定）；
   ///   用 `curl/x.y` 这类非常规 UA 也会 403。
   /// - 河豚图床 pic.hetunxs.com 无论怎么请求都连不上（站点侧问题）。
-  /// 所以这里统一：浏览器 UA + 图片 Accept + Accept-Language，不发 Referer。
-  static Map<String, String> imageHeaders(String url) => <String, String>{
+  /// - mangabz 的图床 image.mangabz.com 反过来：**不带 Referer 就 403**，
+  ///   随便给个同站 Referer（站点首页/章节页/图床自身）都 200。
+  /// 所以默认不发 Referer，需要的那类站点由调用方通过 [referer] 显式传入（漫画阅读器会用书源域名）。
+  static Map<String, String> imageHeaders(String url, {String? referer}) =>
+      <String, String>{
         'User-Agent': userAgent,
         'Accept':
             'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        if (referer != null && referer.trim().isNotEmpty) 'Referer': referer,
       };
 
   /// 图床镜像组：包子系图床会轮换前缀，一个挂掉就换下一个。

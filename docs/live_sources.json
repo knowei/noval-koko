@@ -737,5 +737,54 @@
       "content": "@css:#chaptercontent@html",
       "nextContentUrl": ""
     }
+  },
+  {
+    "bookSourceName": "MangaBZ",
+    "bookSourceGroup": "🧩漫画",
+    "bookSourceType": 2,
+    "bookSourceUrl": "https://www.mangabz.com",
+    "bookSourceComment": "mangabz：搜索/详情/目录走桌面版 HTML；图片是 packer 压缩包，用 __unpack 解开后 eval 取数组",
+    "enabled": true,
+    "enabledExplore": false,
+    "enabledCookieJar": true,
+    "customOrder": 0,
+    "weight": 0,
+    "lastUpdateTime": 0,
+    "respondTime": 180000,
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\", \"Referer\": \"https://www.mangabz.com/\"}",
+    "loginUrl": "",
+    "loginCheckJs": "",
+    "bookUrlPattern": "",
+    "searchUrl": "https://www.mangabz.com/search?title={{key}}&page={{page}}",
+    "ruleSearch": {
+      "bookList": "@css:ul.mh-list > li > div.mh-item",
+      "name": "@css:h2.title a@text",
+      "author": "",
+      "intro": "",
+      "kind": "",
+      "lastChapter": "@css:p.chapter a@text",
+      "bookUrl": "@css:div.mh-item > a@href",
+      "coverUrl": "@css:img.mh-cover@src",
+      "noFilter": true
+    },
+    "ruleBookInfo": {
+      "name": "@css:p.detail-info-title@text",
+      "author": "@css:p.detail-info-tip a!0@text",
+      "intro": "@css:p.detail-info-content@text",
+      "kind": "@css:p.detail-info-tip span.item@text",
+      "lastChapter": "",
+      "coverUrl": "@css:img.detail-info-cover@src",
+      "tocUrl": ""
+    },
+    "ruleToc": {
+      "chapterList": "@css:#chapterlistload > a",
+      "chapterName": "text##（[^）]*）##",
+      "chapterUrl": "href",
+      "nextTocUrl": ""
+    },
+    "ruleContent": {
+      "content": "@js:(function () {\n  var page = String(java.ajax(String(baseUrl)));\n  function grab(re) { var m = re.exec(page); return m ? m[1] : ''; }\n  var mid = grab(/MANGABZ_MID\\s*=\\s*([0-9]+)/);\n  var cid = grab(/MANGABZ_CID\\s*=\\s*([0-9]+)/);\n  var sign = grab(/MANGABZ_VIEWSIGN\\s*=\\s*([0-9a-fA-F]+)/);\n  var cnt = parseInt(grab(/MANGABZ_IMAGE_COUNT\\s*=\\s*([0-9]+)/), 10);\n  if (!cid || !cnt) { return ''; }\n  var path = String(baseUrl).replace(/^https?:\\/\\/[^\\/]+/, '').replace(/\\/$/, '');\n  var out = [];\n  for (var p = 1; p <= cnt; p++) {\n    var api = 'https://www.mangabz.com' + path + '/chapterimage.ashx?cid=' + cid +\n      '&page=' + p + '&key=&_cid=' + cid + '&_mid=' + mid + '&_sign=' + sign + '&_dt=';\n    var payload = String(java.ajax(api));\n    var code = __unpack(payload);\n    if (!code) { continue; }\n    var imgs = null;\n    try { imgs = eval(code); } catch (e) { imgs = null; }\n    if (!imgs || !imgs.length) { continue; }\n    for (var i = 0; i < imgs.length; i++) {\n      out.push('<img src=\"' + imgs[i] + '\">');\n    }\n  }\n  return out.join('');\n})()",
+      "nextContentUrl": ""
+    }
   }
 ]

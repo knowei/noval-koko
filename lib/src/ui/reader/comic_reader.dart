@@ -34,6 +34,8 @@ class _ComicReaderPageState extends State<ComicReaderPage> {
   late int _index = widget.index;
   List<String> _images = const <String>[];
   bool _loading = true;
+  /// 拉图时要带的 Referer（书源域名）。mangabz 这类图床不带就 403。
+  String _referer = '';
   String? _error;
   bool _barVisible = false;
   int _percent = 0;
@@ -92,6 +94,7 @@ class _ComicReaderPageState extends State<ComicReaderPage> {
           .map((String u) => _absolute(u, chapter.url))
           .where((String u) => u.isNotEmpty)
           .toList();
+      _referer = (content.referer as String?) ?? '';
       _cache[index] = imgs;
       if (!mounted) return;
       setState(() {
@@ -228,7 +231,7 @@ class _ComicReaderPageState extends State<ComicReaderPage> {
         itemCount: _images.length + 1,
         itemBuilder: (BuildContext context, int i) {
           if (i == _images.length) return _endTile();
-          return _ComicImage(url: _images[i]);
+          return _ComicImage(url: _images[i], referer: _referer);
         },
       ),
     );
@@ -354,9 +357,10 @@ class _ComicReaderPageState extends State<ComicReaderPage> {
 }
 
 class _ComicImage extends StatefulWidget {
-  const _ComicImage({required this.url});
+  const _ComicImage({required this.url, this.referer});
 
   final String url;
+  final String? referer;
 
   @override
   State<_ComicImage> createState() => _ComicImageState();
@@ -386,7 +390,7 @@ class _ComicImageState extends State<_ComicImage> {
     final String url = variants[_mirror.clamp(0, variants.length - 1)];
     return Image.network(
       url,
-      headers: TextUtil.imageHeaders(url),
+      headers: TextUtil.imageHeaders(url, referer: widget.referer),
       width: double.infinity,
       fit: BoxFit.fitWidth,
       // 图片从上方淡入，避免长图一屏屏「弹」出来

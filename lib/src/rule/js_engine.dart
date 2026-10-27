@@ -37,7 +37,11 @@ class JsRequest {
 typedef JsFetch = Future<String> Function(JsRequest request);
 
 class JsEngine {
-  JsEngine({required this.fetch, this.maxRounds = 8});
+  /// 取数轮次的含义：JS 里每次 `java.ajax` 都是同步等待，引擎靠「抛错 →
+  /// 外面取一次数据 → 重跑整段 JS」来模拟。**每轮只能多解决一个 URL**
+  /// （JS 在第一个未命中的 ajax 处就 throw 了），所以漫画站那种「一个章节
+  /// 几十页、每页一个接口」的规则，轮次上限必须够大（mangabz 实测 35 页）。
+  JsEngine({required this.fetch, this.maxRounds = 160});
 
   /// ajax 取数实现。
   final JsFetch fetch;
@@ -59,6 +63,13 @@ var result = '';
 var baseUrl = '';
 var sourceUrl = '';
 var sourceName = '';
+var key = '';
+var page = 1;
+var searchKey = '';
+var searchPage = 1;
+// Legado 规则里常见的对象上下文，先给空壳，避免 ReferenceError
+var book = { bookUrl: '', name: '', author: '', tocUrl: '', origin: '' };
+var chapter = { url: '', title: '', index: 0 };
 
 // 少数书源会把整段浏览器脚本（例如图片解密器）粘进规则里，它们通常会挂到 window 上，
 // 并顺手读 location / document。这里给出最小可用的同名全局，避免 ReferenceError。
@@ -154,6 +165,26 @@ var TextDecoder = function (label) {
     return s;
   };
 };
+
+// Dean Edwards packer 解码：不少漫画站把图片地址压成
+//   eval(function(p,a,c,k,e,d){...}(...))
+// 这里用捕获函数顶替 eval，把展开后的真实源码拿回来，再 eval 一次即可。
+var __novalPackSrc = null;
+function __novalCapturePack(s) {
+  __novalPackSrc = String(s);
+  return s;
+}
+function __unpack(payload) {
+  var src = String(payload == null ? '' : payload);
+  __novalPackSrc = null;
+  src = src.replace(/^\s*eval\s*\(/, '__novalCapturePack(');
+  try {
+    eval(src);
+  } catch (e) {
+    return '';
+  }
+  return __novalPackSrc == null ? '' : __novalPackSrc;
+}
 
 function __novalHas(k) {
   return Object.prototype.hasOwnProperty.call(__novalCache, k);
@@ -281,6 +312,8 @@ function __novalRun(code) {
     String baseUrl = '',
     String sourceUrl = '',
     String sourceName = '',
+    String key = '',
+    int page = 1,
     Map<String, String> headers = const <String, String>{},
   }) async {
     final JavascriptRuntime rt = _runtime();
@@ -291,6 +324,14 @@ function __novalRun(code) {
       _setVar(rt, 'baseUrl', baseUrl);
       _setVar(rt, 'sourceName', sourceName);
       _setVar(rt, 'sourceUrl', sourceUrl);
+      rt.evaluate(
+        'key = ${jsonEncode(key)};'
+        'page = $page;'
+        'searchKey = key;'
+        'searchPage = page;'
+        'if (baseUrl) { book.bookUrl = baseUrl; book.origin = baseUrl; }'
+        'if (baseUrl) { chapter.url = baseUrl; }',
+      );
       rt.evaluate(
         'source.bookSourceUrl = ${jsonEncode(sourceUrl)};'
         'source.bookSourceName = ${jsonEncode(sourceName)};',
@@ -348,6 +389,8 @@ function __novalRun(code) {
     String baseUrl = '',
     String sourceUrl = '',
     String sourceName = '',
+    String key = '',
+    int page = 1,
     Map<String, String> headers = const <String, String>{},
   }) async {
     final List<String> list = await run(
@@ -356,6 +399,8 @@ function __novalRun(code) {
       baseUrl: baseUrl,
       sourceUrl: sourceUrl,
       sourceName: sourceName,
+      key: key,
+      page: page,
       headers: headers,
     );
     return list.isEmpty ? '' : list.first;

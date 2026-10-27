@@ -10,6 +10,7 @@ import '../net/rate_limiter.dart';
 import '../rule/js_engine.dart';
 import '../rule/rule_context.dart';
 import '../rule/rule_parser.dart';
+import 'pica_source.dart';
 
 /// 把「书源规则」跑成真正的数据。
 ///
@@ -29,11 +30,15 @@ class SourceEngine {
       },
     );
     parser = RuleParser(js: js);
+    pica = PicaSource(this.http);
   }
 
   final HttpService http;
   late final JsEngine js;
   late final RuleParser parser;
+
+  /// 哔咔这类「每请求都要签名 + 要登录态」的站点走原生实现。
+  late final PicaSource pica;
 
   final Map<String, Map<String, String>> _headerCache =
       <String, Map<String, String>>{};
@@ -187,6 +192,9 @@ class SourceEngine {
     if (!source.canSearch) {
       throw RuleException('书源「${source.name}」未配置搜索地址');
     }
+    if (PicaSource.matches(source)) {
+      return pica.search(source, key, page: page);
+    }
     resetJs();
     final Map<String, String> headers = await headersOf(source);
     final _RequestSpec spec = await _buildSearchRequest(source, key, page);
@@ -294,6 +302,7 @@ class SourceEngine {
   ) {
     final String k = key.trim();
     if (k.isEmpty || list.length < 4) return list;
+    if (rule.noFilter) return list;
     if (rule.bookList.contains('@Json:')) return list;
     final String norm = _normalize(k);
     final List<SearchBook> hit = list
@@ -323,6 +332,9 @@ class SourceEngine {
     String? fallbackIntro,
     String? fallbackCover,
   }) async {
+    if (PicaSource.matches(source)) {
+      return pica.bookInfo(source, bookUrl);
+    }
     resetJs();
     final Map<String, String> headers = await headersOf(source);
     final HttpResult res = await _fetch(source, bookUrl, headers: headers);
@@ -373,6 +385,9 @@ class SourceEngine {
     int maxPages = 40,
   }) async {
     final Map<String, String> headers = await headersOf(source);
+    if (PicaSource.matches(source)) {
+      return pica.chapters(source, info);
+    }
     final TocRule rule = source.ruleToc;
 
     final List<BookChapter> out = <BookChapter>[];
@@ -437,6 +452,9 @@ class SourceEngine {
     int maxPages = 8,
   }) async {
     final Map<String, String> headers = await headersOf(source);
+    if (PicaSource.matches(source)) {
+      return pica.content(source, chapter);
+    }
     final ContentRule rule = source.ruleContent;
     if (rule.content.trim().isEmpty) {
       throw RuleException('书源「${source.name}」未配置正文规则');
@@ -483,7 +501,13 @@ class SourceEngine {
       if (images.isEmpty) {
         throw RuleException('未解析到漫画图片，书源规则可能失效');
       }
-      return BookContent(images: images, title: chapter.title);
+      return BookContent(
+        images: images,
+        title: chapter.title,
+        // 图床普遍按 Referer 白名单拦：带上书源域名最稳妥（linovelib 这类
+        // 不许带 Referer 的站，图片加载层会自动去掉重试）。
+        referer: source.url,
+      );
     }
 
     final String text = texts.join('\n');
@@ -608,6 +632,8 @@ class SourceEngine {
         baseUrl: source.url,
         sourceUrl: source.url,
         sourceName: source.name,
+        key: key,
+        page: page,
       );
       raw = produced.trim();
     }

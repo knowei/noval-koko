@@ -395,6 +395,30 @@ docs/
 
 ## 真实书源适配现状与体检
 
+### 被 DNS 污染的站：用「域名 → 真 IP」直连，不需要代理
+
+国内 DNS 对一批站点返回的是**伪造 IP**（实测 `18comic.vip` 被解析到
+`157.240.8.41`、`www.picacomic.com` 到 `128.121.243.77`，都是别人的地址），所以纯靠
+HTTP 客户端重试只会一直超时——真正被卡住的是解析这一步，不是 IP 也不是 SNI。
+
+拿到真 IP 之后直连是通的（`curl`/裸 socket 实测，不挂代理）：
+
+```
+18comic.vip        172.66.162.116  -> 403（Cloudflare 人机验证，站点活着）
+www.picacomic.com  172.66.173.71   -> 200
+```
+
+墨町的做法写在 `lib/src/net/dns_override.dart` + `HttpService`：给
+`HttpClient.connectionFactory` 套一层，连接打到表里的 IP，Host 与 TLS SNI 仍是原域名、
+证书照常校验（`SecureSocket.secure(raw, host: uri.host)`）。内置表里有哔咔/禁漫，
+另外应用数据目录下的 `dns_overrides.json`（`{"域名": ["ip1","ip2"]}`）会覆盖它，
+方便自己换 IP 而不用改代码。同类阅读器（Venera-Next）是同一个思路：
+它的 HTTP 层是 Rust reqwest + `DnsSettings::StaticDns`，设置里叫「DNS 覆盖」。
+
+注意两点：① 禁漫即使直连成功也会撞 Cloudflare 人机验证，需要 `cf_clearance` Cookie
+（把浏览器过验证后的 Cookie 填进书源 header，墨町会持久化复用）；② 表里的 IP 会变，
+失效后重新查一次 Cloudflare 的地址即可。
+
 引擎按 Legado 书源格式实现，已经覆盖真实源里最常见的写法：`@css:` / `@json:` / `@xpath:`
 前缀、`<js>` 与 `@js:`、`org.jsoup.Jsoup` 垫片、`!0:3` 索引切片、`##正则##替换###`、
 `ruleBookInfo.init` 正则分组 + `$1` 模板、`searchUrl` 的 `,{json}` 选项（`method` / `body` /
@@ -446,7 +470,7 @@ flutter test integration_test/live_source_test.dart -d windows
 Standard Ebooks 的结构稳定、无反爬，`flutter test integration_test/real_source_test.dart -d windows`
 实测 搜索 7 条 / 目录 67 章 / 正文 2581 字全部通过。你要验证自己的中文源时，也是同一个流程。
 
-### 精选书源清单（`docs/live_sources.json`，2026-10-26 实测）
+### 精选书源清单（`docs/live_sources.json`，2026-10-27 实测）
 
 回归命令（改引擎后必须仍然全绿，结果同时写进 `tool/curated_sources_report.txt`）：
 
@@ -470,8 +494,20 @@ flutter test integration_test/curated_sources_test.dart -d windows
 | 📚出版物 | 可阅文学网 `www.kepub.net` | 小说 | 1 条（山雨） | 29 章 | 2 万字级（`<br>` 分段） |
 | 📚出版物 | 麦归文学 `www.maiguiread.com` | 小说 | 1 条（解忧杂货店） | 5 章 | 28512 字 |
 | 🧩漫画 | MangaDex `api.mangadex.org` | 漫画（日漫） | 8 条（チェンソー） | 6 章 | 单章 34 张图（@Home 节点） |
+| 📗中文轻小说 | 幻梦轻小说 `www.huanmengacg.com` | 小说 | 1 条（妹妹人生） | 17 章 | 433 字（按 `order` 排序去干扰段） |
+| 📖中文小说 | 笔趣阁 `m.bigee.cc` | 小说 | 3 条（剑来） | 1298 章 | 1063 字（`?all=1` 绕开门禁） |
+| 🧩漫画 | MangaBZ `www.mangabz.com` | 漫画 | 12 条（斗罗大陆） | 3 章 | 单章 35 张图（需 Referer + JS 解包） |
 
 几个踩过的坑，改源前值得看一眼：
+
+- **图床 Referer 两副面孔**：`linovelib` 的图带 Referer 反而 403（不带才行，所以
+  `TextUtil.imageHeaders` 默认不发）；`mangabz` 的图**不带就 403**，必须带同站域名。
+  于是 `BookContent.referer` 由引擎按书源域名填、漫画阅读器透传，两派站点都能活。
+- **Dean Edwards packer**：mangabz 的图片地址藏在 `eval(function(p,a,c,k,e,d){...})` 里，
+  书源 JS 直接调引擎内置的 `__unpack(源码)`（预置 `split('|')` 与捕获用 `eval`），
+  解出 `dm5imagefun()` 再执行，才能拿到带签名参数的真链。
+- **繁体/简体**：mangabz 只认繁体，搜「斗罗大陆」拿到 12 条近似结果却没有本体。
+  书源里写 `noFilter: true` 关掉标题相关性过滤，让站点的搜索排序自己说了算。
 
 - **Gutenberg 没进清单**：`pride and prejudice` 单页全文 73 万字，阅读器分页会卡死；
   Standard Ebooks 有真正的分章节页面，体验更好。
@@ -490,6 +526,29 @@ flutter test integration_test/curated_sources_test.dart -d windows
   改 `bookSourceUrl` 就能复制一份兜底源（`tool/make_mh_mirrors.py`）。但 `godamh.com`（G站）
   虽然同构、目录与图片接口都能用，**搜索是纯前端渲染**（`/s?q=` SSR 里没有结果），
   所以没有收进来。
+
+### 原生源：哔咔漫画（`pica://`）
+
+> 状态（2026-10-27）：官方后端目前对所有请求返回固定占位数据（签名正确也回同一份假 JSON），
+> 所以入口已临时隐藏（`lib/src/ui/mine_page.dart` 的 `kShowPicaEntry = false`），代码保留待后端恢复。
+
+哔咔的协议用纯 JSON 规则表达不了，所以做成了内置原生源（`lib/src/source/pica_source.dart`），
+书源里写 `pica://comic` 就会命中它，不经过规则引擎：
+
+- **每个请求都要签名**：`signature = HMAC-SHA256(apiSecret, apiKey + timestamp + nonce + METHOD + path)`，
+  路径进签名意味着 header 不能写死，必须在 Dart 里逐请求算。
+- **要登录态**：`POST /auth/sign-in`（邮箱 + 密码）换 `token`，之后每个请求都带 `authorization`。
+  token 存在本机 `app_setting` 的 `pica_token`，重启 App 继续用；失效时接口回 401，
+  引擎会抛「哔咔登录状态失效，请重新登录」。
+- **入口**：「我的 → 书源 → 哔咔漫画 → 登录哔咔」，填一次邮箱密码即可（只写本地库）。
+- **数据结构**：搜索 `GET /comics?page=&keyword=`、详情 `GET /comics/{id}`、
+  目录 `GET /comics/{id}/order?page=`（分页，`eps.pages` 给总页数）、
+  图片 `GET /comics/{id}/order/{order}/pages?page=` → `pages.docs[].media.path`
+  拼 `https://storage1.picacomic.com/static/`。
+- 回归用例 `test/pica_source_test.dart`：本地假服务器逐字节校验签名、登录、搜索、目录、图片、
+  401 重登提示（共 4 个用例）。
+- 它同样吃 DNS 覆盖：`www.picacomic.com` / `picaapi.picacomic.com` 在国内 DNS 下被污染，
+  不覆盖 IP 会一直超时。
 
 自己验证某个源时，用这个排障用例（会把「请求」和「解析」拆开看到底卡在哪一步）：
 

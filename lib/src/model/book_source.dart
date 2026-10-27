@@ -78,6 +78,7 @@ class SearchRule {
     this.coverUrl = '',
     this.wordCount = '',
     this.checkKeyWord = '',
+    this.noFilter = false,
   });
 
   final String bookList;
@@ -92,6 +93,10 @@ class SearchRule {
   final String wordCount;
   final String checkKeyWord;
 
+  /// 关掉「结果里必须含关键词」这道过滤。
+  /// 用于繁体站（关键词是简体、结果全是繁体，永远匹配不上）或站点自己做了相关性排序的情况。
+  final bool noFilter;
+
   factory SearchRule.fromJson(Map<String, dynamic> j) => SearchRule(
         bookList: _s(j, 'bookList'),
         name: _s(j, 'name'),
@@ -104,6 +109,7 @@ class SearchRule {
         coverUrl: _s(j, 'coverUrl'),
         wordCount: _s(j, 'wordCount'),
         checkKeyWord: _s(j, 'checkKeyWord'),
+        noFilter: j['noFilter'] == true,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -118,6 +124,7 @@ class SearchRule {
         'coverUrl': coverUrl,
         'wordCount': wordCount,
         'checkKeyWord': checkKeyWord,
+        if (noFilter) 'noFilter': true,
       };
 }
 

@@ -7,8 +7,10 @@ import '../app_state.dart';
 import '../core/version.dart';
 import '../model/book_source.dart';
 import '../model/shelf_book.dart';
+import '../net/http_service.dart';
 import '../net/net_diag.dart';
 import '../net/net_diag_page.dart';
+import 'cf_verify_page.dart';
 import 'source_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_sheet.dart';
@@ -98,6 +100,28 @@ class MinePage extends StatelessWidget {
                 AppCard(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpace.lg, vertical: AppSpace.md),
+                  onTap: () => _openCfVerify(context, state),
+                  child: _Entry(
+                    icon: Icons.verified_user_outlined,
+                    title: '浏览器过验证',
+                    subtitle: '站点要求人机验证时，用内置浏览器过一次并保存 Cookie',
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.lg, vertical: AppSpace.md),
+                  onTap: () => _pasteCookie(context, state),
+                  child: _Entry(
+                    icon: Icons.content_paste_go,
+                    title: '粘贴 Cookie',
+                    subtitle: '内置浏览器打不开时：在电脑浏览器过完验证，把 Cookie 贴进来',
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.lg, vertical: AppSpace.md),
                   child: _Entry(
                     icon: Icons.bookmark_added_outlined,
                     title: '本地导入',
@@ -174,6 +198,133 @@ class MinePage extends StatelessWidget {
       ),
     );
   }
+
+
+  /// 让用户填一个地址，开内置浏览器过验证，把 Cookie 灌进引擎的 CookieJar。
+  ///
+  /// 和书源行里的「浏览器过验证」是同一套管道，区别只是这里不依赖具体书源：
+  /// 站点还没写成规则、或者规则里的 host 和你想验证的 host 不一致时用这个。
+  Future<void> _openCfVerify(BuildContext context, AppState state) async {
+    final TextEditingController ctrl = TextEditingController(text: 'https://');
+    final String? input = await showDialog<String>(
+      context: context,
+      builder: (BuildContext c) => AlertDialog(
+        title: const Text('浏览器过验证'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            labelText: '站点地址',
+            hintText: 'https://18comic.vip/',
+          ),
+          onSubmitted: (String v) => Navigator.of(c).pop(v),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(c).pop(ctrl.text),
+            child: const Text('打开'),
+          ),
+        ],
+      ),
+    );
+    final Uri? uri = Uri.tryParse(input?.trim() ?? '');
+    if (uri == null || uri.host.isEmpty) return;
+    if (!context.mounted) return;
+    final List<ImportedCookie>? cookies =
+        await Navigator.of(context).push<List<ImportedCookie>>(
+      fadeSlideRoute<List<ImportedCookie>>(
+        CfVerifyPage(startUrl: uri.toString(), host: uri.host),
+      ),
+    );
+    if (cookies == null || cookies.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('这个平台没能取到 Cookie。改走「粘贴 Cookie」：'
+              '用 Edge 打开站点过验证 → F12 → Application → Cookies → 复制 cf_clearance'),
+          duration: Duration(seconds: 8),
+        ),
+      );
+      return;
+    }
+    final int n = await state.engine.http.importCookies(uri.host, cookies);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          n > 0
+              ? '已保存 $n 条 Cookie（${uri.host}），有效期跟随站点'
+              : 'Cookie 没保存成功',
+        ),
+      ),
+    );
+  }
+
+
+  /// 手动粘贴 Cookie：内置浏览器打不开站点（DNS 被污染、WebView 起不来）时的后路。
+  Future<void> _pasteCookie(BuildContext context, AppState state) async {
+    final TextEditingController hostCtrl = TextEditingController(
+        text: state.sources.isEmpty ? '' : _hostOf(state.sources.first.url));
+    final TextEditingController cookieCtrl = TextEditingController();
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext c) => AlertDialog(
+        title: const Text('粘贴 Cookie'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                controller: hostCtrl,
+                decoration: const InputDecoration(
+                  labelText: '站点域名',
+                  hintText: '18comic.vip',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cookieCtrl,
+                minLines: 3,
+                maxLines: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Cookie',
+                  hintText: 'cf_clearance=xxxx; other=yyy',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(c).pop(true),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    String host = hostCtrl.text.trim();
+    if (host.contains('://')) host = Uri.tryParse(host)?.host ?? host;
+    final int n =
+        await state.engine.http.importCookieHeader(host, cookieCtrl.text);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(n > 0 ? '已保存 $n 条 Cookie（$host）' : '没解析出 Cookie，格式应为 a=1; b=2'),
+      ),
+    );
+  }
+
+  String _hostOf(String url) => Uri.tryParse(url)?.host ?? '';
 
   void _showAbout(BuildContext context) {
     final AppPalette p = context.palette;

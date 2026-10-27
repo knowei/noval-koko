@@ -12,6 +12,7 @@ import 'db/database.dart';
 import 'db/shelf_repo.dart';
 import 'db/source_repo.dart';
 import 'local/local_book_store.dart';
+import 'net/dns_override.dart';
 import 'model/book_info.dart';
 import 'model/book_source.dart';
 import 'model/search_book.dart';
@@ -120,6 +121,9 @@ class AppState extends ChangeNotifier {
   /// 主题模式：system 跟随系统 / light 浅色 / dark 深色。
   String themeModeId = 'system';
 
+  /// 哔咔登录后的昵称；空 = 没登录（或还没拉到）。
+  String picaUserName = '';
+
   ThemeMode get themeMode => switch (themeModeId) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
@@ -132,6 +136,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> bootstrap() async {
     await AppDatabase.instance.init();
+    // 先把「域名→真实 IP」覆盖表读进来（内置表 + 数据目录里的
+    // dns_overrides.json）。国内 DNS 对被墙站点返回伪造 IP，没有这张表
+    // 那些站一律超时；有了真 IP 就能直连（Host/SNI 仍是原域名）。
+    try {
+      await DnsOverride.loadFromSupportDir(
+        await getApplicationSupportDirectory(),
+      );
+    } catch (_) {}
     shelfRepo = ShelfRepo();
     sourceRepo = SourceRepo();
     engine = SourceEngine();
@@ -154,6 +166,14 @@ class AppState extends ChangeNotifier {
     if (savedMode == 'system' || savedMode == 'light' || savedMode == 'dark') {
       themeModeId = savedMode!;
     }
+    // 哔咔这类要登录的源：token 存本地，重启后直接复用。
+    final String? picaToken = await shelfRepo.getSetting('pica_token');
+    if (picaToken != null && picaToken.isNotEmpty) {
+      engine.pica.token = picaToken;
+      unawaited(_refreshPicaUser());
+    }
+    final String? picaUuid = await shelfRepo.getSetting('pica_uuid');
+    if (picaUuid != null && picaUuid.isNotEmpty) engine.pica.uuid = picaUuid;
     ready = true;
     notifyListeners();
   }
@@ -334,6 +354,38 @@ class AppState extends ChangeNotifier {
 
   Future<String> exportSources({bool enabledOnly = false}) =>
       sourceRepo.exportAll(enabledOnly: enabledOnly);
+
+  // ------------------------------------------------------------- 哔咔（原生源）
+
+  /// 登录哔咔：成功返回昵称（可能为空），失败抛 RuleException。
+  Future<String> picaLogin(String email, String password) async {
+    final String token = await engine.pica.signIn(email, password);
+    await shelfRepo.setSetting('pica_token', token);
+    if (engine.pica.uuid.isEmpty) {
+      await shelfRepo.setSetting('pica_uuid', engine.pica.uuid);
+    }
+    picaUserName = '';
+    await _refreshPicaUser();
+    notifyListeners();
+    return picaUserName;
+  }
+
+  Future<void> picaLogout() async {
+    engine.pica.token = null;
+    picaUserName = '';
+    await shelfRepo.setSetting('pica_token', '');
+    notifyListeners();
+  }
+
+  Future<void> _refreshPicaUser() async {
+    if (engine.pica.token == null || engine.pica.token!.isEmpty) return;
+    try {
+      picaUserName = await engine.pica.me();
+      notifyListeners();
+    } catch (_) {
+      // token 过期之类的问题不打扰用户，等真正搜索时再报。
+    }
+  }
 
   // ----------------------------------------------------------------- search
 

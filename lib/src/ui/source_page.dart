@@ -8,13 +8,22 @@ import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../model/book_source.dart';
 import '../net/net_diag.dart';
+import '../net/http_service.dart';
 import '../net/net_diag_page.dart';
+import '../source/pica_source.dart';
+import 'cf_verify_page.dart';
 import 'motion.dart';
 import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'widgets.dart';
 
 /// 书源管理：导入 / 启停 / 体检 / 删除 / 导出。
+
+/// 哔咔漫画的接口 2026-10 起已经是空壳（/foobar 返回 success 但 data 恒空，
+/// 签名正确也一律 401/1005），登录入口留着只会误导使用者。后端活了把这个
+/// 开关打开即可恢复，代码本身没删。
+const bool kShowPicaEntry = false;
+
 class SourcePage extends StatefulWidget {
   const SourcePage({super.key});
 
@@ -198,6 +207,22 @@ class _SourcePageState extends State<SourcePage> {
               subtitle: Text(s.url, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             const Divider(height: 1),
+            if (kShowPicaEntry && PicaSource.matches(s))
+              ListTile(
+                leading: const Icon(Icons.account_circle_outlined),
+                title: Text(
+                  state.picaUserName.isEmpty ? '登录哔咔' : '哔咔：${state.picaUserName}',
+                ),
+                subtitle: Text(
+                  state.picaUserName.isEmpty
+                      ? '哔咔要登录才能搜索/看图，账号密码只存在本机'
+                      : '点一下可以重新登录或退出',
+                ),
+                onTap: () {
+                  Navigator.of(c).pop();
+                  _picaAccount();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.wifi_tethering),
               title: const Text('网络诊断'),
@@ -205,6 +230,15 @@ class _SourcePageState extends State<SourcePage> {
               onTap: () {
                 Navigator.of(c).pop();
                 _openNetDiag(s);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: const Text('浏览器过验证'),
+              subtitle: const Text('被人机验证挡住时，在这里真开一次网页'),
+              onTap: () {
+                Navigator.of(c).pop();
+                _openCfVerify(s);
               },
             ),
             ListTile(
@@ -231,6 +265,83 @@ class _SourcePageState extends State<SourcePage> {
     );
   }
 
+  /// 哔咔账号：登录 / 退出。
+  Future<void> _picaAccount() async {
+    final AppState state = context.read<AppState>();
+    final bool logged = state.picaUserName.isNotEmpty;
+    final TextEditingController email = TextEditingController();
+    final TextEditingController pwd = TextEditingController();
+
+    final String? action = await showDialog<String>(
+      context: context,
+      builder: (BuildContext c) => AlertDialog(
+        title: Text(logged ? '哔咔：${state.picaUserName}' : '登录哔咔'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              logged
+                  ? '已经登录。要换账号就重新填邮箱密码，token 失效时也可以在这里重登。'
+                  : '哔咔的接口每个请求都要签名并且需要登录态，所以得用你的账号换一个 token。'
+                      '账号密码只写进本机数据库，不会上传。',
+              style: context.text.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: email,
+              decoration: const InputDecoration(labelText: '邮箱'),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            TextField(
+              controller: pwd,
+              decoration: const InputDecoration(labelText: '密码'),
+              obscureText: true,
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          if (logged)
+            TextButton(
+              onPressed: () => Navigator.of(c).pop('logout'),
+              child: const Text('退出登录'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(c).pop('login'),
+            child: const Text('登录'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'logout') {
+      await state.picaLogout();
+      if (!mounted) return;
+      _toast('已退出哔咔');
+      return;
+    }
+    if (action != 'login') return;
+    final String e = email.text.trim();
+    final String p = pwd.text;
+    if (e.isEmpty || p.isEmpty) {
+      _toast('邮箱和密码都要填');
+      return;
+    }
+    _toast('登录中…');
+    try {
+      final String who = await state.picaLogin(e, p);
+      if (!mounted) return;
+      _toast(who.isEmpty ? '哔咔登录成功' : '哔咔登录成功：$who');
+    } catch (err) {
+      if (!mounted) return;
+      _toast('登录失败：$err');
+    }
+  }
+
   void _openNetDiag(BookSource s) {
     final String json = const JsonEncoder.withIndent('  ').convert(s.toJson());
     final List<String> hosts = NetDiag.hostsOf(<String>[s.url, json]);
@@ -244,6 +355,35 @@ class _SourcePageState extends State<SourcePage> {
         ),
       ),
     );
+  }
+
+  /// 真开一次浏览器过验证：拿到 Cookie 就灌进引擎的 CookieJar。
+  ///
+  /// 适用场景：站点挂着 Cloudflare 人机验证，规则请求一律 403。用户在
+  /// WebView 里正常浏览一次，`cf_clearance` 这类 Cookie 就能被抓回来。
+  Future<void> _openCfVerify(BookSource s) async {
+    final Uri? uri = Uri.tryParse(s.url);
+    final String host = uri?.host ?? '';
+    if (host.isEmpty) {
+      _toast('这个书源的 URL 解析不出域名，先检查书源 URL');
+      return;
+    }
+    final String scheme = (uri!.scheme == 'http') ? 'http' : 'https';
+    final AppState state = context.read<AppState>();
+    final NavigatorState nav = Navigator.of(context);
+    final List<ImportedCookie>? cookies = await nav.push<List<ImportedCookie>>(
+      fadeSlideRoute<List<ImportedCookie>>(
+        CfVerifyPage(startUrl: '$scheme://$host/', host: host),
+      ),
+    );
+    if (cookies == null || cookies.isEmpty) {
+      _toast('没取到 Cookie：这个平台的内置浏览器取不到站点 Cookie。'
+          '请用 Edge 过验证后，走「我的 → 粘贴 Cookie」');
+      return;
+    }
+    final int n = await state.engine.http.importCookies(host, cookies);
+    if (!mounted) return;
+    _toast(n > 0 ? '已保存 $n 条 Cookie，再回去搜一次试试' : 'Cookie 没保存成功');
   }
 
   void _showJson(BookSource s) {

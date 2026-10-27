@@ -4,11 +4,13 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 
 import '../core/charset_util.dart';
 import '../core/rule_exception.dart';
+import 'dns_override.dart';
 import 'rate_limiter.dart';
 
 /// 一次 HTTP 请求的结果。
@@ -28,6 +30,19 @@ class HttpResult {
   bool get isOk => statusCode >= 200 && statusCode < 400;
 }
 
+/// 从 WebView 里抓回来的一条 Cookie。
+///
+/// 单独定一个轻量模型，是为了让 UI 层不用碰 `dart:io` 的 Cookie（那套属性
+/// 有平台差异），也避免和 WebView 插件自己的 Cookie 类型撞名。
+class ImportedCookie {
+  const ImportedCookie(this.name, this.value, {this.domain = '', this.path = '/'});
+
+  final String name;
+  final String value;
+  final String domain;
+  final String path;
+}
+
 /// 统一的网络层：自动处理编码、Cookie、重定向、超时与「按域名限速」。
 class HttpService {
   HttpService({
@@ -35,6 +50,7 @@ class HttpService {
     RateLimiter? limiter,
     this.timeout,
     HttpClientAdapter? adapter,
+    String? proxy,
   }) : limiter = limiter ?? RateLimiter() {
     _dio = Dio(
       BaseOptions(
@@ -59,6 +75,61 @@ class HttpService {
     _dio.interceptors.add(CookieManager(_jar));
     // 测试时灌一个假传输层，不打真网络。
     if (adapter != null) _dio.httpClientAdapter = adapter;
+    // 桌面端可选代理：环境变量 NOVAL_PROXY（如 http://127.0.0.1:7897）或构造参数。
+    final String? p = proxy ??
+        Platform.environment['NOVAL_PROXY'] ??
+        Platform.environment['noval_proxy'];
+    if (adapter == null) {
+      final String hostPort =
+          (p ?? '').trim().replaceFirst(RegExp(r'^https?://'), '');
+      final bool useProxy = hostPort.isNotEmpty;
+      _dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final HttpClient c = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 20);
+          if (useProxy) {
+            c.findProxy = (Uri _) => 'PROXY $hostPort';
+          } else {
+            // 没走代理时套一层 DNS 覆盖：连接打到真实 IP，Host 与 TLS SNI 仍是
+            // 原域名（证书照常校验）。国内 DNS 对这些站返回伪造 IP，不这么做
+            // 就永远超时；有了真 IP，直连 Cloudflare 是通的。
+            //
+            // 注意：connectionFactory 返回的 socket 会被当成**已完成传输层**，
+            // https 时 TLS 得自己包（否则服务器收到明文，回
+            // 「400 The plain HTTP request was sent to HTTPS port」）。
+            c.connectionFactory =
+                (Uri uri, String? proxyHost, int? proxyPort) async {
+              final List<String>? ips = DnsOverride.of(uri.host);
+              final String target =
+                  (ips == null || ips.isEmpty) ? uri.host : ips.first;
+              final int port = uri.port == 0 ? 443 : uri.port;
+              final Socket raw = await Socket.connect(
+                target,
+                port,
+                timeout: const Duration(seconds: 15),
+              );
+              if (uri.scheme != 'https') {
+                return ConnectionTask.fromSocket(
+                  Future<Socket>.value(raw),
+                  () {},
+                );
+              }
+              // host 传域名而不是 IP：SNI 与证书校验都按域名来。
+              final SecureSocket secure = await SecureSocket.secure(
+                raw,
+                host: uri.host,
+                supportedProtocols: const <String>['http/1.1'],
+              );
+              return ConnectionTask.fromSocket(
+                Future<Socket>.value(secure),
+                () {},
+              );
+            };
+          }
+          return c;
+        },
+      );
+    }
   }
 
   late final Dio _dio;
@@ -152,6 +223,62 @@ class HttpService {
       // 落盘失败不影响主流程。
     }
   }
+
+  /// 把 WebView 里拿到的 Cookie 灌进本地 CookieJar，并立刻落盘。
+  ///
+  /// 典型用法：用户在「浏览器过验证」页里手动通过 Cloudflare 之后，把
+  /// `cf_clearance` 之类的 Cookie 带回来。之后同一域名的规则请求会自动
+  /// 带上它们（dio_cookie_manager 按 CookieJar 匹配域名），直到过期。
+  /// 把用户从浏览器里复制的一整条 Cookie 头（`a=1; b=2`）灌进 jar。
+  ///
+  /// 给「站点要人机验证、但内置浏览器打不开」的场景留的后路：用户在自己
+  /// 电脑的浏览器上过验证，把 `cf_clearance=...` 那串贴进来即可。
+  Future<int> importCookieHeader(String host, String raw) async {
+    String text = raw.trim();
+    if (text.toLowerCase().startsWith('cookie:')) {
+      text = text.substring(7).trim();
+    }
+    // 有些人会连请求头一起贴，把换行里的其它头丢掉。
+    text = text.split(RegExp(r'[\r\n]')).first.trim();
+    final List<ImportedCookie> list = <ImportedCookie>[];
+    for (final String part in text.split(';')) {
+      final String seg = part.trim();
+      if (seg.isEmpty) continue;
+      final int eq = seg.indexOf('=');
+      if (eq <= 0) continue;
+      list.add(ImportedCookie(
+        seg.substring(0, eq).trim(),
+        seg.substring(eq + 1).trim(),
+        domain: host,
+      ));
+    }
+    return importCookies(host, list);
+  }
+
+  Future<int> importCookies(String host, Iterable<ImportedCookie> cookies) async {
+    final List<Cookie> list = <Cookie>[];
+    if (host.isEmpty) return 0;
+    final Uri origin = Uri.parse('https://$host/');
+    for (final ImportedCookie c in cookies) {
+      if (c.name.isEmpty) continue;
+      final Cookie cookie = Cookie(c.name, c.value);
+      // 没有 domain 的 Cookie 只是「本响应可用」，存进 jar 后不会再被匹配，
+      // 所以这里统一补成导入域名。
+      cookie.domain = c.domain.isEmpty ? host : c.domain;
+      cookie.path = c.path.isEmpty ? '/' : c.path;
+      list.add(cookie);
+    }
+    if (list.isEmpty) return 0;
+    await _jar.saveFromResponse(origin, list);
+    _hosts.add(host);
+    await saveCookies();
+    onCookiesChanged?.call();
+    return list.length;
+  }
+
+  /// 看某域名当前手上有哪些 Cookie（界面展示 / 排障用）。
+  Future<List<Cookie>> cookiesFor(String host) =>
+      _jar.loadForRequest(Uri.parse('https://$host/'));
 
   /// 响应是不是 Cloudflare / 人机验证页。
   static bool looksLikeChallenge(String text, Headers headers) {
