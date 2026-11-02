@@ -19,6 +19,7 @@ import 'model/search_book.dart';
 import 'model/shelf_book.dart';
 import 'model/source_subscription.dart';
 import 'source/source_engine.dart';
+import 'source/source_health.dart';
 import 'ui/theme/app_theme.dart';
 
 /// 一次「按书源」的搜索结果。
@@ -108,7 +109,9 @@ class AppState extends ChangeNotifier {
 
   late final ShelfRepo shelfRepo;
   late final SourceRepo sourceRepo;
-  late final SourceEngine engine;
+
+  /// 规则引擎。测试里可以注入带假传输层的实例。
+  late SourceEngine engine;
 
   List<BookSource> sources = <BookSource>[];
   List<ShelfBook> shelf = <ShelfBook>[];
@@ -395,37 +398,57 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 顺序搜索所有可用书源，每完成一个就回调，UI 可以边搜边显示。
+  /// 并发搜索所有可用书源，谁先回谁先显示。
+  ///
+  /// 之前是 `for` 顺序跑：17 个源里只要有一个卡在 DNS/连接超时（15s）上，
+  /// 后面的源全都得排队等它，用户看到的就是「一个个慢慢出」。
+  /// 现在开 [concurrency] 个 worker 抢任务，单个源 10s 超时，
+  /// 总体耗时 ≈ 最慢那一批，而不是所有源之和。
   Future<void> searchAll(
     String key, {
     required void Function(SearchOutcome outcome) onOutcome,
+    int concurrency = 8,
   }) async {
     _cancelSearch = false;
     searching = true;
     notifyListeners();
 
     final List<BookSource> list = searchableSources;
-    for (final BookSource source in list) {
-      if (_cancelSearch) break;
-      final int start = DateTime.now().millisecondsSinceEpoch;
-      try {
-        final List<SearchBook> books =
-            await engine.search(source, key).timeout(const Duration(seconds: 25));
-        onOutcome(SearchOutcome(
-          sourceName: source.name,
-          sourceUrl: source.url,
-          books: books,
-          costMs: DateTime.now().millisecondsSinceEpoch - start,
-        ));
-      } catch (e) {
-        onOutcome(SearchOutcome(
-          sourceName: source.name,
-          sourceUrl: source.url,
-          error: _friendly(e),
-          costMs: DateTime.now().millisecondsSinceEpoch - start,
-        ));
+    int cursor = 0;
+
+    Future<void> worker() async {
+      while (!_cancelSearch) {
+        final int i = cursor++;
+        if (i >= list.length) return;
+        final BookSource source = list[i];
+        final int start = DateTime.now().millisecondsSinceEpoch;
+        try {
+          final List<SearchBook> books = await engine
+              .search(source, key)
+              .timeout(const Duration(seconds: 10));
+          if (_cancelSearch) return;
+          onOutcome(SearchOutcome(
+            sourceName: source.name,
+            sourceUrl: source.url,
+            books: books,
+            costMs: DateTime.now().millisecondsSinceEpoch - start,
+          ));
+        } catch (e) {
+          if (_cancelSearch) return;
+          onOutcome(SearchOutcome(
+            sourceName: source.name,
+            sourceUrl: source.url,
+            error: _friendly(e),
+            costMs: DateTime.now().millisecondsSinceEpoch - start,
+          ));
+        }
       }
     }
+
+    final int workers = list.length < concurrency ? list.length : concurrency;
+    await Future.wait(<Future<void>>[
+      for (int i = 0; i < workers; i++) worker(),
+    ]);
 
     searching = false;
     notifyListeners();
@@ -449,29 +472,43 @@ class AppState extends ChangeNotifier {
   }) async {
     final String want = normBookName(book.name);
     final List<SourceCandidate> out = <SourceCandidate>[];
-    for (final BookSource source in searchableSources) {
-      if (source.url == book.sourceUrl) continue;
-      try {
-        final List<SearchBook> hits = await engine
-            .search(source, book.name)
-            .timeout(const Duration(seconds: 25));
-        SearchBook? best;
-        for (final SearchBook h in hits) {
-          final String got = normBookName(h.name);
-          if (got == want ||
-              (got.length >= 2 && (got.contains(want) || want.contains(got)))) {
-            best = h;
-            break;
+    // 同样并发跑：换源本来就是「越多源命中越好」，顺序跑会让人等到怀疑人生。
+    final List<BookSource> others = searchableSources
+        .where((BookSource s) => s.url != book.sourceUrl)
+        .toList();
+    int cursor = 0;
+
+    Future<void> worker() async {
+      while (cursor < others.length) {
+        final BookSource source = others[cursor++];
+        try {
+          final List<SearchBook> hits = await engine
+              .search(source, book.name)
+              .timeout(const Duration(seconds: 10));
+          SearchBook? best;
+          for (final SearchBook h in hits) {
+            final String got = normBookName(h.name);
+            if (got == want ||
+                (got.length >= 2 &&
+                    (got.contains(want) || want.contains(got)))) {
+              best = h;
+              break;
+            }
           }
+          if (best == null) continue;
+          final SourceCandidate c = SourceCandidate(source: source, book: best);
+          out.add(c);
+          onCandidate?.call(c);
+        } catch (_) {
+          // 单个源失败不影响整张候选表
         }
-        if (best == null) continue;
-        final SourceCandidate c = SourceCandidate(source: source, book: best);
-        out.add(c);
-        onCandidate?.call(c);
-      } catch (_) {
-        // 单个源失败不影响整张候选表
       }
     }
+
+    final int workers = others.length < 6 ? others.length : 6;
+    await Future.wait(<Future<void>>[
+      for (int i = 0; i < workers; i++) worker(),
+    ]);
     return out;
   }
 
@@ -675,14 +712,154 @@ class AppState extends ChangeNotifier {
       throw StateError('这本书所属的书源已被删除：${book.sourceName}');
     }
     final BookContent raw = await engine.content(source, chapter);
-    // 书源的 @html 规则拿到的是带标签的 HTML；在这里一次性拍平成纯文本，
-    // 阅读器/预览/TTS 拿到的都是干净文本。
+    return finalizeContent(raw);
+  }
+
+  /// 把引擎返回的原始内容整理成阅读器能直接用的形态。
+  ///
+  /// 正文在这里一次性拍平成纯文本（`@html` 规则拿到的是带标签的 HTML），
+  /// 其它字段必须**原样保留**——尤其是 [BookContent.referer]：
+  /// mangabz 这类图床不带 Referer 就 403，漏掉它漫画图在 App 里会全白。
+  static BookContent finalizeContent(BookContent raw) {
     return BookContent(
       text: raw.text.isEmpty ? raw.text : htmlToPlainText(raw.text),
       images: raw.images,
       nextUrl: raw.nextUrl,
       title: raw.title,
+      referer: raw.referer,
     );
+  }
+
+  /// 书源体检。带分级：网络 → 搜索 → 详情 → 目录 → 正文/图片。
+  ///
+  /// [deep] = false 只验到「搜索有结果」，用于全量批量体检（轻，避免把站点刷封）；
+  /// [deep] = true 走完整链路，只给单源手动触发用。
+  Future<SourceHealth> checkSource(
+    BookSource source, {
+    bool deep = false,
+    String? keyword,
+  }) async {
+    final DateTime at = DateTime.now();
+    final String custom = (keyword ?? source.ruleSearch.checkKeyWord).trim();
+    final String key = custom.isNotEmpty ? custom : '剑来';
+
+    List<SearchBook> hits;
+    try {
+      hits = await engine
+          .search(source, key)
+          .timeout(const Duration(seconds: 25));
+    } catch (e) {
+      return SourceHealth(
+        stage: SourceStage.networkFail,
+        at: at,
+        note: '搜索请求失败：${_brief(e)}',
+      );
+    }
+    if (hits.isEmpty) {
+      return SourceHealth(
+        stage: SourceStage.emptyResult,
+        at: at,
+        note: '搜「$key」0 条（改版/反爬/关键词不适用）',
+      );
+    }
+    if (!deep) {
+      return SourceHealth(
+        stage: SourceStage.searchOnly,
+        at: at,
+        hits: hits.length,
+        note: '只验了搜索，正文未验',
+      );
+    }
+
+    final SearchBook pick = hits.first;
+    BookInfo info;
+    try {
+      info = await engine
+          .bookInfo(
+            source,
+            pick.bookUrl,
+            fallbackName: pick.name,
+            fallbackAuthor: pick.author,
+            fallbackCover: pick.cover,
+          )
+          .timeout(const Duration(seconds: 30));
+    } catch (e) {
+      return SourceHealth(
+        stage: SourceStage.detailFail,
+        at: at,
+        hits: hits.length,
+        note: '详情打不开：${_brief(e)}',
+      );
+    }
+    if (info.name.trim().isEmpty) {
+      return SourceHealth(
+        stage: SourceStage.detailFail,
+        at: at,
+        hits: hits.length,
+        note: '详情页取不到书名',
+      );
+    }
+
+    List<BookChapter> chapters;
+    try {
+      chapters = await engine
+          .chapters(source, info)
+          .timeout(const Duration(seconds: 45));
+    } catch (e) {
+      return SourceHealth(
+        stage: SourceStage.tocFail,
+        at: at,
+        hits: hits.length,
+        note: '目录取不到：${_brief(e)}',
+      );
+    }
+    if (chapters.isEmpty) {
+      return SourceHealth(
+        stage: SourceStage.tocFail,
+        at: at,
+        hits: hits.length,
+        note: '目录 0 章',
+      );
+    }
+
+    final BookChapter mid = chapters[chapters.length ~/ 2];
+    try {
+      final BookContent c = await engine
+          .content(source, mid)
+          .timeout(const Duration(seconds: 45));
+      final String text = htmlToPlainText(c.text).trim();
+      if (text.length < 120 && c.images.isEmpty) {
+        return SourceHealth(
+          stage: SourceStage.contentFail,
+          at: at,
+          hits: hits.length,
+          chapters: chapters.length,
+          note: '「${mid.title}」正文为空（${text.length} 字 / 0 图）',
+        );
+      }
+      return SourceHealth(
+        stage: SourceStage.readable,
+        at: at,
+        hits: hits.length,
+        chapters: chapters.length,
+        textLength: text.length,
+        images: c.images.length,
+      );
+    } catch (e) {
+      return SourceHealth(
+        stage: SourceStage.contentFail,
+        at: at,
+        hits: hits.length,
+        chapters: chapters.length,
+        note: '正文打不开：${_brief(e)}',
+      );
+    }
+  }
+
+  /// 把异常压成一句话，别把整段堆栈塞进界面。
+  String _brief(Object e) {
+    final String s = e.toString().replaceAll('\n', ' ').trim();
+    return s.length <= 80 ? s : '${s.substring(0, 80)}…';
   }
 
   Future<void> addToShelf(ShelfBook book) async {

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../core/text_util.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../model/book_info.dart';
 import '../../model/shelf_book.dart';
+import '../../net/http_service.dart';
 import '../chapter_list_page.dart';
 import '../motion.dart';
+import '../net_image_provider.dart';
 import 'read_theme.dart';
 
 /// 漫画阅读器：竖向滚动。
@@ -367,33 +368,29 @@ class _ComicImage extends StatefulWidget {
 }
 
 class _ComicImageState extends State<_ComicImage> {
-  /// 图床镜像下标：这张图失败了就换镜像域名再试一次。
-  int _mirror = 0;
+  /// 重试计数：失败后手动重试时 +1，让 Image 重新走一遍取图。
+  int _retry = 0;
 
   @override
   void didUpdateWidget(covariant _ComicImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) _mirror = 0;
-  }
-
-  void _tryNextMirror(List<String> variants) {
-    if (_mirror + 1 >= variants.length) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() => _mirror += 1);
-    });
+    if (oldWidget.url != widget.url) _retry = 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<String> variants = TextUtil.imageUrlVariants(widget.url);
-    final String url = variants[_mirror.clamp(0, variants.length - 1)];
-    return Image.network(
-      url,
-      headers: TextUtil.imageHeaders(url, referer: widget.referer),
+    // 走自家 Dio 通道（NetImageProvider）：镜像轮换 + Referer 回退都在里面做。
+    // 不能用 Image.network —— 它会 add 出两个 UA 头，Cloudflare 图床必 403。
+    final HttpService http = context.read<AppState>().engine.http;
+    final NetImageProvider provider =
+        NetImageProvider(http, widget.url, referer: widget.referer);
+    return Image(
+      key: ValueKey<String>('${widget.url}#$_retry'),
+      image: provider,
       width: double.infinity,
       fit: BoxFit.fitWidth,
-      // 图片从上方淡入，避免长图一屏屏「弹」出来
+      gaplessPlayback: true,
+      // 图到了才淡入，避免长图一屏屏「弹」出来
       frameBuilder: (
         BuildContext context,
         Widget child,
@@ -401,50 +398,57 @@ class _ComicImageState extends State<_ComicImage> {
         bool wasSynchronouslyLoaded,
       ) {
         if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
+        return AnimatedSwitcher(
           duration: kMotionSlow,
-          curve: kMotionCurve,
-          child: child,
-        );
-      },
-      loadingBuilder: (
-        BuildContext context,
-        Widget child,
-        ImageChunkEvent? progress,
-      ) {
-        if (progress == null) return child;
-        final double? total = progress.expectedTotalBytes?.toDouble();
-        return SizedBox(
-          height: 220,
-          child: Center(
-            child: SizedBox(
-              width: 26,
-              height: 26,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white38,
-                value: total == null || total == 0
-                    ? null
-                    : progress.cumulativeBytesLoaded / total,
-              ),
-            ),
-          ),
+          switchInCurve: kMotionCurve,
+          child: frame == null
+              ? const SizedBox(
+                  key: ValueKey<String>('loading'),
+                  height: 220,
+                  child: Center(
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white38,
+                      ),
+                    ),
+                  ),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey<String>('image'),
+                  child: child,
+                ),
         );
       },
       errorBuilder:
           (BuildContext context, Object error, StackTrace? stackTrace) {
-        _tryNextMirror(variants);
         return Container(
           height: 160,
           alignment: Alignment.center,
           color: const Color(0xFF1A1A1A),
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(Icons.broken_image_outlined, color: Colors.white24),
-              SizedBox(height: 6),
-              Text('图片加载失败', style: TextStyle(color: Colors.white24, fontSize: 11)),
+              const Icon(Icons.broken_image_outlined, color: Colors.white24),
+              const SizedBox(height: 6),
+              const Text(
+                '图片加载失败',
+                style: TextStyle(color: Colors.white24, fontSize: 11),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () {
+                  provider.evict();
+                  setState(() => _retry += 1);
+                },
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: Colors.white54,
+                ),
+                child: const Text('重试', style: TextStyle(fontSize: 12)),
+              ),
             ],
           ),
         );

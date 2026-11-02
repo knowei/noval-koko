@@ -10,6 +10,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 
 import '../core/charset_util.dart';
 import '../core/rule_exception.dart';
+import '../core/text_util.dart';
 import 'dns_override.dart';
 import 'rate_limiter.dart';
 
@@ -492,6 +493,36 @@ class HttpService {
       );
       return Uint8List.fromList(resp.data ?? const <int>[]);
     });
+  }
+
+  /// 带容错的取图：镜像域名轮换 + Referer 有/无各试一次。
+  ///
+  /// 为什么不用 `Image.network`：Flutter 的 `NetworkImage` 是
+  /// `request.headers.add('User-Agent', ...)`，而 dart:io 的 `HttpClient` 本来
+  /// 就带一个默认 UA（`Dart/3.x (dart:io)`），`add` 会变成**两个 UA 头**，
+  /// Cloudflare 直接 403（实测：set → 200，add → 403）。Dio 是 set 语义所以正常，
+  /// 因此漫画图一律走这条 Dio 通道，再用 `NetImageProvider` 交给 Flutter 解码。
+  Future<Uint8List> fetchImage(String url, {String? referer}) async {
+    Object? lastError;
+    for (final String candidate in TextUtil.imageUrlVariants(url)) {
+      final List<Map<String, String>> headerSets = <Map<String, String>>[
+        TextUtil.imageHeaders(candidate, referer: referer),
+        if (referer != null && referer.trim().isNotEmpty)
+          TextUtil.imageHeaders(candidate),
+      ];
+      for (final Map<String, String> headers in headerSets) {
+        try {
+          final Uint8List bytes = await imageBytes(candidate, headers: headers);
+          if (bytes.isNotEmpty) return bytes;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+    }
+    throw RuleException(
+      '图片下载失败',
+      detail: lastError == null ? url : '$url → $lastError',
+    );
   }
 
   void dispose() {

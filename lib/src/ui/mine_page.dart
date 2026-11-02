@@ -98,22 +98,11 @@ class MinePage extends StatelessWidget {
                 AppCard(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpace.lg, vertical: AppSpace.md),
-                  onTap: () => _openCfVerify(context, state),
-                  child: _Entry(
-                    icon: Icons.verified_user_outlined,
-                    title: '浏览器过验证',
-                    subtitle: '站点要求人机验证时，用内置浏览器过一次并保存 Cookie',
-                  ),
-                ),
-                const SizedBox(height: AppSpace.md),
-                AppCard(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpace.lg, vertical: AppSpace.md),
                   onTap: () => _pasteCookie(context, state),
                   child: _Entry(
-                    icon: Icons.content_paste_go,
-                    title: '粘贴 Cookie',
-                    subtitle: '内置浏览器打不开时：在电脑浏览器过完验证，把 Cookie 贴进来',
+                    icon: Icons.verified_user_outlined,
+                    title: '过人机验证 / 粘贴 Cookie',
+                    subtitle: '站点要 cf_clearance 时：先在电脑浏览器过验证，再把 Cookie 贴进来',
                   ),
                 ),
                 const SizedBox(height: AppSpace.md),
@@ -198,18 +187,11 @@ class MinePage extends StatelessWidget {
   }
 
 
-  /// 让用户填一个地址，开内置浏览器过验证，把 Cookie 灌进引擎的 CookieJar。
+  /// 手动粘贴 Cookie：站点被 Cloudflare 挡住时，用电脑浏览器过一次验证，
+  /// 把 `cf_clearance` 之类的 Cookie 贴进来，引擎会存到本地反复使用直到过期。
   ///
-  /// 和书源行里的「浏览器过验证」是同一套管道，区别只是这里不依赖具体书源：
-  /// 站点还没写成规则、或者规则里的 host 和你想验证的 host 不一致时用这个。
-  Future<void> _openCfVerify(BuildContext context, AppState state) async {
-    // 内置 WebView 在部分平台取不到站点 Cookie，统一改走手动粘贴。
-    await _pasteCookie(context, state);
-  }
-
-
-
-  /// 手动粘贴 Cookie：内置浏览器打不开站点（DNS 被污染、WebView 起不来）时的后路。
+  /// App 内不再内置 WebView 过验证——那套在桌面和国内网络下都过不去，
+  /// 留着入口只会让人以为点了就能用。
   Future<void> _pasteCookie(BuildContext context, AppState state) async {
     final TextEditingController hostCtrl = TextEditingController(
         text: state.sources.isEmpty ? '' : _hostOf(state.sources.first.url));

@@ -150,7 +150,14 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  // Do not steal foreground focus on startup: SW_SHOWNOACTIVATE shows the
+  // window without activating it, so whatever the user is typing in keeps
+  // focus. HWND_NOTOPMOST makes sure we are not a top-most window either.
+  // To restore the default "pop up and focus" behaviour, use SW_SHOWNORMAL.
+  ShowWindow(window_handle_, SW_SHOWNOACTIVATE);
+  SetWindowPos(window_handle_, HWND_NOTOPMOST, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  return true;
 }
 
 // static

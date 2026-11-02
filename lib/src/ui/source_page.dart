@@ -10,6 +10,7 @@ import '../model/book_source.dart';
 import '../net/net_diag.dart';
 import '../net/net_diag_page.dart';
 import '../source/pica_source.dart';
+import '../source/source_health.dart';
 import 'motion.dart';
 import 'subscription_page.dart';
 import 'theme/app_theme.dart';
@@ -32,13 +33,14 @@ class SourcePage extends StatefulWidget {
 class _SourcePageState extends State<SourcePage> {
   bool _busy = false;
 
-  /// 体检结果：null 未测 / true 可用 / false 失效。
-  final Map<String, bool?> _health = <String, bool?>{};
+  /// 体检结果：没测过的源不在表里。值是分级结果，见 [SourceHealth]。
+  final Map<String, SourceHealth> _health = <String, SourceHealth>{};
   final TextEditingController _query = TextEditingController();
   String _filter = 'all';
   int _checked = 0;
   int _toCheck = 0;
   bool _checking = false;
+  final Set<String> _deepChecking = <String>{};
 
   @override
   void dispose() {
@@ -141,8 +143,10 @@ class _SourcePageState extends State<SourcePage> {
 
   // ---------------------------------------------------------------- checking
 
-  /// 轻量体检：拿每个源搜一下（有关键词用 checkKeyWord，否则用源名），
-  /// 只要请求没抛异常就算「可用」。0 条结果不代表失效。
+  /// 批量轻体检：只验到「搜索有结果」。
+  ///
+  /// 不在这里跑正文，是因为逐源打开章节会成倍放大请求量，很容易把站点
+  /// 刷到限流/封 IP，反而让原本能用的源变不可用。要验正文请用单源深检。
   Future<void> _check() async {
     if (_checking) return;
     final AppState state = context.read<AppState>();
@@ -161,34 +165,52 @@ class _SourcePageState extends State<SourcePage> {
     });
 
     for (final BookSource s in targets) {
-      final String custom = s.ruleSearch.checkKeyWord.trim();
-      final String key = custom.isNotEmpty ? custom : '剑来';
-      bool ok;
-      try {
-        await state.engine
-            .search(s, key)
-            .timeout(const Duration(seconds: 20));
-        ok = true;
-      } catch (_) {
-        ok = false;
-      }
+      final SourceHealth h = await state.checkSource(s);
       if (!mounted) return;
       setState(() {
-        _health[s.url] = ok;
+        _health[s.url] = h;
         _checked++;
       });
-      await state.reloadSources();
+      // 温和节流：别让批量体检变成对站点的连发压测
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
 
-    if (mounted) {
-      setState(() => _checking = false);
-      _toast('检测完成');
+    if (!mounted) return;
+    setState(() => _checking = false);
+    final int ok = _health.values.where((SourceHealth h) => h.readable).length;
+    final int searched = _health.values
+        .where((SourceHealth h) => h.stage != SourceStage.networkFail)
+        .length;
+    _toast('轻检完成：$searched 个请求成功，$ok 个可读（正文请用单源深检）');
+  }
+
+  /// 单源深检：搜索 → 详情 → 目录 → 抽样正文/图片，慢但说真话。
+  Future<void> _deepCheck(BookSource s) async {
+    if (_deepChecking.contains(s.url)) return;
+    final AppState state = context.read<AppState>();
+    setState(() => _deepChecking.add(s.url));
+    _toast('深检「${s.name}」：要搜一次、开一次详情、拉目录、读一章…');
+    try {
+      final SourceHealth h = await state.checkSource(s, deep: true);
+      if (!mounted) return;
+      setState(() => _health[s.url] = h);
+      if (!mounted) return;
+      _toast(h.readable ? '「${s.name}」可读：${h.detail}' : '「${s.name}」${h.label}：${h.note}');
+    } finally {
+      if (mounted) setState(() => _deepChecking.remove(s.url));
     }
   }
 
-  int _countWhere(List<BookSource> list, bool? want) => list
-      .where((BookSource s) => _health.containsKey(s.url) && _health[s.url] == want)
+  int _countReadable(List<BookSource> list) => list
+      .where((BookSource s) => _health[s.url]?.readable ?? false)
       .length;
+
+  int _countFailed(List<BookSource> list) => list
+      .where((BookSource s) => _health[s.url]?.failed ?? false)
+      .length;
+
+  int _countUntested(List<BookSource> list) =>
+      list.where((BookSource s) => !_health.containsKey(s.url)).length;
 
   // ----------------------------------------------------------------- actions
 
@@ -222,6 +244,15 @@ class _SourcePageState extends State<SourcePage> {
                 },
               ),
             ListTile(
+              leading: const Icon(Icons.fact_check_outlined),
+              title: const Text('深度体检（读一章）'),
+              subtitle: const Text('搜索 → 详情 → 目录 → 正文/图片 全链路验一遍，慢但可信'),
+              onTap: () {
+                Navigator.of(c).pop();
+                _deepCheck(s);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.wifi_tethering),
               title: const Text('网络诊断'),
               subtitle: const Text('看这个源的域名在你这儿通不通'),
@@ -232,8 +263,8 @@ class _SourcePageState extends State<SourcePage> {
             ),
             ListTile(
               leading: const Icon(Icons.verified_user_outlined),
-              title: const Text('浏览器过验证'),
-              subtitle: const Text('被人机验证挡住时，在这里真开一次网页'),
+              title: const Text('过人机验证 / 填 Cookie'),
+              subtitle: const Text('被 Cloudflare 挡住时：看步骤说明，再把 Cookie 粘进来'),
               onTap: () {
                 Navigator.of(c).pop();
                 _openCfVerify(s);
@@ -440,9 +471,10 @@ class _SourcePageState extends State<SourcePage> {
     final AppState state = context.watch<AppState>();
     final List<BookSource> all = state.sources;
 
-    final int ok = _countWhere(all, true);
-    final int bad = _countWhere(all, false);
-    final int idle = all.length - ok - bad;
+    final int ok = _countReadable(all);
+    final int bad = _countFailed(all);
+    final int idle = _countUntested(all);
+    final int shallow = all.length - ok - bad - idle;
 
     final String q = _query.text.trim().toLowerCase();
     final List<BookSource> list = all.where((BookSource s) {
@@ -453,11 +485,13 @@ class _SourcePageState extends State<SourcePage> {
       }
       switch (_filter) {
         case 'ok':
-          return _health[s.url] == true;
+          return _health[s.url]?.readable ?? false;
         case 'bad':
-          return _health[s.url] == false;
+          return _health[s.url]?.failed ?? false;
+        case 'shallow':
+          return _health[s.url]?.searchOnly ?? false;
         case 'idle':
-          return _health[s.url] == null;
+          return !_health.containsKey(s.url);
         default:
           return true;
       }
@@ -542,7 +576,7 @@ class _SourcePageState extends State<SourcePage> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text('$ok 个可用 · $bad 个失效 · $idle 个未测',
+                      Text('$ok 个可读 · $shallow 个仅搜索 · $bad 个有问题 · $idle 个未测',
                           style: context.text.bodySmall),
                       const SizedBox(height: 10),
                       ClipRRect(
@@ -553,6 +587,11 @@ class _SourcePageState extends State<SourcePage> {
                               Expanded(
                                 flex: ok,
                                 child: Container(height: 6, color: p.primary),
+                              ),
+                            if (shallow > 0)
+                              Expanded(
+                                flex: shallow,
+                                child: Container(height: 6, color: p.inkMid),
                               ),
                             if (bad > 0)
                               Expanded(
@@ -592,8 +631,9 @@ class _SourcePageState extends State<SourcePage> {
                 children: <Widget>[
                   for (final List<String> c in <List<String>>[
                     <String>['all', '全部'],
-                    <String>['ok', '可用'],
-                    <String>['bad', '失效'],
+                    <String>['ok', '可读'],
+                    <String>['shallow', '仅搜索'],
+                    <String>['bad', '有问题'],
                     <String>['idle', '未测'],
                   ]) ...<Widget>[
                     AppChip(
@@ -788,7 +828,7 @@ class _SourceRow extends StatelessWidget {
   });
 
   final BookSource source;
-  final bool? health;
+  final SourceHealth? health;
   final VoidCallback onOpen;
   final ValueChanged<bool> onToggle;
 
@@ -797,9 +837,8 @@ class _SourceRow extends StatelessWidget {
     final AppPalette p = context.palette;
     final Color dot = health == null
         ? p.idle
-        : (health! ? p.ok : p.bad);
-    final String label =
-        health == null ? '未测' : (health! ? '可用' : '失效');
+        : (health!.readable ? p.ok : (health!.failed ? p.bad : p.inkMid));
+    final String label = health?.label ?? '未测';
     final String host = Uri.tryParse(source.url)?.host ?? source.url;
 
     return InkWell(
@@ -857,6 +896,18 @@ class _SourceRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: context.text.bodySmall?.copyWith(fontSize: 11),
                   ),
+                  if (health != null) ...<Widget>[
+                    const SizedBox(height: 2),
+                    Text(
+                      health!.detail,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.text.bodySmall?.copyWith(
+                        fontSize: 11,
+                        color: health!.failed ? p.bad : p.inkMid,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -869,7 +920,13 @@ class _SourceRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(label,
-                    style: TextStyle(fontSize: 11, color: p.inkMid)),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: health == null
+                            ? p.inkMid
+                            : (health!.readable
+                                ? p.primaryDeep
+                                : (health!.failed ? p.bad : p.inkMid)))),
               ],
             ),
             const SizedBox(width: 6),

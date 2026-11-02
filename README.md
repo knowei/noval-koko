@@ -32,7 +32,8 @@ flutter run -d windows
 | 导入书源 JSON（粘贴、剪贴板、文件、URL） | ✅ |
 | 导入本地书：TXT（UTF-8/GBK 自动识别）、EPUB | ✅ |
 | 书源开关 / 删除 / 查看原始 JSON | ✅ |
-| 多源并行搜索、按源显示失败原因 | ✅ |
+| 书源体检：分五级（网络失败 / 搜索无结果 / 仅搜索通过 / 详情·目录·正文失败 / 可读） | ✅ |
+| 多源**并发**搜索（8 路 worker、单源 10s 超时、谁先回谁先显示）、按源显示失败原因 | ✅ |
 | 书籍详情（封面、简介、目录预览） | ✅ |
 | 目录拉取与缓存、换源字段（tocUrl） | ✅ |
 | **换源**：一本书在其它源里自动找同名书，一键切换且迁移阅读进度 | ✅ |
@@ -69,6 +70,20 @@ flutter run -d windows
 flutter run -d <device-id>
 ```
 
+### 桌面启动不抢前台
+
+Windows 上默认行为是「窗口一出来就顶到最前面并抢走焦点」，打字会被打断。改法在
+`windows/runner/win32_window.cpp` 的 `Win32Window::Show()`：
+
+```cpp
+ShowWindow(window_handle_, SW_SHOWNOACTIVATE);   // 显示但不激活
+SetWindowPos(window_handle_, HWND_NOTOPMOST, 0, 0, 0, 0,
+             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+```
+
+想恢复「正常弹出并聚焦」，换回 `SW_SHOWNORMAL` 即可。注意该文件注释必须写 ASCII
+（MSVC 在代码页 936 下遇到非 ASCII 会报 C4819 并当成错误）。
+
 ### 打 Android 包（国内网络下的坑）
 
 ```powershell
@@ -89,14 +104,26 @@ flutter build apk --debug        # 产物 build\app\outputs\flutter-apk\app-debu
 
 ### 签名是固定的（应用内更新必须）
 
-`android/key.properties` + `android/app/noval-release.jks` 这两份**故意提交在仓库里**：
-release 构建（本地和 GitHub Actions）都用同一把钥匙签名，APK 才能覆盖安装。
+release 构建（本地和 GitHub Actions）必须用**同一把**钥匙签名，APK 才能覆盖安装。
 v0.4.0 及更早的包用的是 GitHub runner 上**每次重新生成的 debug key**，
 所以每个版本的签名都不一样，升级时会报「已安装了签名冲突的应用」——
 那些版本之间只能卸载重装。从 v0.5.0 起签名固定，应用内更新可以直接覆盖。
 
-代价是这把私钥进了仓库：仓库只给自己用就别外传；要公开前先把这两个文件移出去、
-再重新生成密钥（换钥匙又意味着现有装机要卸载重装一次）。
+签名材料有两种放法，**keystore 必须是同一个**（换钥匙 = 现有装机全部要卸载重装一次）：
+
+| 方式 | 做法 | 适用 |
+| --- | --- | --- |
+| Secrets（推荐） | 配 `ANDROID_KEYSTORE_B64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个 Secret，工作流会把它解码成 `android/app/noval-release.jks` 和 `android/key.properties` | 仓库要公开 / 想彻底不留私钥 |
+| 仓库内文件（fallback） | `android/key.properties` + `android/app/noval-release.jks` 提交在仓库里 | 只给自己用、懒 |
+
+没配 Secrets 时工作流会在日志里打一条 warning 并使用仓库内那份，构建不受影响。
+
+> 迁移顺序很重要：**先配 Secrets 并跑通一次发布**，再 `git rm --cached` 掉这两个文件。
+> 顺序反了会让 CI 回退到 debug 签名，老安装立刻装不上。
+> 另外注意：把文件移出版本控制 **不等于** 消除历史泄露，翻旧提交仍能看到私钥；
+> 真要彻底干净只能换钥匙，并接受一次「卸载重装」。
+> 当前这把钥匙的指纹（SHA-256）：
+> `65:8F:13:44:88:02:15:17:2F:5C:D2:18:48:9D:96:74:1D:71:53:1C:A4:41:D4:AC:66:D6:24:B7:17:27:DC:E1`
 
 ### 自动发版：打 tag 就出 APK 到 Release
 
@@ -148,7 +175,8 @@ noval-latest-arm64-v8a.apk       ← 永远指向最新那版 arm64
   拉起系统安装器（首次会要求授予「安装未知应用」权限）；
 - Windows / macOS / Linux 直接打开 Release 页面手动下载。
 
-签名用的是 runner 临时 debug key；换成自己的 keystore 才需要配 Secrets（见工作流注释）。
+签名固定：由 `ANDROID_KEYSTORE_B64` 等 Secrets（推荐）或仓库内的
+`android/app/noval-release.jks` 提供，两者必须是同一把钥匙，详见上文「签名是固定的」。
 
 ### 源大面积失效时，按这个顺序排
 
@@ -395,6 +423,30 @@ docs/
 
 ## 真实书源适配现状与体检
 
+### 体检口径（v0.7.1 起）
+
+以前「体检」的判定是「搜索请求没抛异常 = 可用」，于是经常出现
+**搜出来有结果、点进去正文是空的**，界面上却写着可用。
+现在按链路分级，界面上只说它真的验到了哪一步：
+
+| 分级 | 含义 |
+| --- | --- |
+| 网络失败 | 搜索请求直接失败（DNS / 超时 / 连接重置 / HTTP 错误） |
+| 搜索无结果 | 请求通了但 0 条（改版、反爬、关键词不适用） |
+| 仅搜索通过 | 只验到搜索有结果，**正文没验** |
+| 详情失败 / 目录失败 / 正文失败 | 逐级卡住，副标题写明原因 |
+| 可读 | 搜索 → 详情 → 目录 → 抽样正文（或图片）全链路通过 |
+
+两级入口：
+
+- **批量轻检**（书源管理页「重新检测」）：只跑搜索，逐源间隔 250ms。
+  正文一律不批量跑——逐源开章节会把请求量翻几倍，很容易被站点限流封 IP，
+  反而让原本能用的源变不可用。
+- **单源深检**（书源行 →「深度体检（读一章）」）：走完整链路，
+  搜一次、开一次详情、拉目录、读中间那章，慢但结论可信。
+
+每条结果都带检测时间，副标题写清「搜索 N 条 · 目录 M 章 · 抽样正文 X 字 · 时间」。
+
 ### 被 DNS 污染的站：用「域名 → 真 IP」直连，不需要代理
 
 国内 DNS 对一批站点返回的是**伪造 IP**（实测 `18comic.vip` 被解析到
@@ -418,6 +470,24 @@ www.picacomic.com  172.66.173.71   -> 200
 注意两点：① 禁漫即使直连成功也会撞 Cloudflare 人机验证，需要 `cf_clearance` Cookie
 （把浏览器过验证后的 Cookie 填进书源 header，墨町会持久化复用）；② 表里的 IP 会变，
 失效后重新查一次 Cloudflare 的地址即可。
+
+### 图片全挂、提示「图片加载失败」：先查是不是「两个 UA 头」
+
+`Image.network`（即 `NetworkImage`）内部用的是 `request.headers.add('User-Agent', …)`，
+而 dart:io 的 `HttpClient` 本来就带一个默认 UA（`Dart/3.x (dart:io)`），`add` 的结果是
+**一条请求里两个 User-Agent 头**。Cloudflare 后面的图床（包子漫画的 `c-nd2-1.6wm.top` 等）
+见到就直接 403，实测（同一张图、同一进程）：
+
+```
+裸请求          403
+headers.set UA  200
+headers.add UA  403   ← NetworkImage 走的是这条
+```
+
+所以漫画正文图不走 `Image.network`，而是 `HttpService.fetchImage()`（Dio，`set` 语义）取字节，
+再由 `lib/src/ui/net_image_provider.dart` 的 `NetImageProvider` 交给 Flutter 解码；镜像轮换
+（`c-nd2 → c-nd3 → c-nc-1/2`）和「带 Referer / 不带 Referer 各试一次」也在这个方法里做。
+封面用的 `cached_network_image` 走的是 `package:http`（`set` 语义），不受这个坑影响。
 
 引擎按 Legado 书源格式实现，已经覆盖真实源里最常见的写法：`@css:` / `@json:` / `@xpath:`
 前缀、`<js>` 与 `@js:`、`org.jsoup.Jsoup` 垫片、`!0:3` 索引切片、`##正则##替换###`、
