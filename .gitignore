@@ -63,6 +63,12 @@ app.*.map.json
 /tool/ln_probe/
 /tool/local_test/
 
+# 签名私钥：改由 GitHub Secrets 注入（ANDROID_KEYSTORE_B64 / ..._PASSWORD / KEY_ALIAS / KEY_PASSWORD）
+# 本地自己打包时把 jks 和 key.properties 放回 android/ 下即可，但不要提交
+/android/key.properties
+/android/app/*.jks
+/android/app/*.keystore
+
 # Android 本地配置与构建缓存
 /android/local.properties
 /android/.gradle/

@@ -109,18 +109,23 @@ v0.4.0 及更早的包用的是 GitHub runner 上**每次重新生成的 debug k
 所以每个版本的签名都不一样，升级时会报「已安装了签名冲突的应用」——
 那些版本之间只能卸载重装。从 v0.5.0 起签名固定，应用内更新可以直接覆盖。
 
-签名材料有两种放法，**keystore 必须是同一个**（换钥匙 = 现有装机全部要卸载重装一次）：
+**keystore 必须是同一个**（换钥匙 = 现有装机全部要卸载重装一次）。
 
-| 方式 | 做法 | 适用 |
-| --- | --- | --- |
-| Secrets（推荐） | 配 `ANDROID_KEYSTORE_B64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个 Secret，工作流会把它解码成 `android/app/noval-release.jks` 和 `android/key.properties` | 仓库要公开 / 想彻底不留私钥 |
-| 仓库内文件（fallback） | `android/key.properties` + `android/app/noval-release.jks` 提交在仓库里 | 只给自己用、懒 |
+从 v0.7.2 起，私钥**只在 GitHub Secrets 里**，仓库中不再包含：
 
-没配 Secrets 时工作流会在日志里打一条 warning 并使用仓库内那份，构建不受影响。
+| Secret | 值 |
+| --- | --- |
+| `ANDROID_KEYSTORE_B64` | `base64 -w0 android/app/noval-release.jks` 的输出 |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore 口令 |
+| `ANDROID_KEY_ALIAS` | 别名（当前是 `noval`） |
+| `ANDROID_KEY_PASSWORD` | 该别名的口令 |
 
-> 迁移顺序很重要：**先配 Secrets 并跑通一次发布**，再 `git rm --cached` 掉这两个文件。
-> 顺序反了会让 CI 回退到 debug 签名，老安装立刻装不上。
-> 另外注意：把文件移出版本控制 **不等于** 消除历史泄露，翻旧提交仍能看到私钥；
+工作流会把它 `base64 -d` 还原成 `android/app/noval-release.jks` 并生成 `android/key.properties`。
+**缺这些 Secrets 时工作流直接失败**（不再回退 debug 签名——那种包签名对不上，装上去等于另一个应用）。
+
+本地自己打包：把 jks 与 `key.properties` 放回 `android/` 下即可（`.gitignore` 已忽略，不会误提交）。
+
+> 把文件移出版本控制 **不等于** 消除历史泄露，翻旧提交仍能看到私钥；
 > 真要彻底干净只能换钥匙，并接受一次「卸载重装」。
 > 当前这把钥匙的指纹（SHA-256）：
 > `65:8F:13:44:88:02:15:17:2F:5C:D2:18:48:9D:96:74:1D:71:53:1C:A4:41:D4:AC:66:D6:24:B7:17:27:DC:E1`
@@ -175,8 +180,7 @@ noval-latest-arm64-v8a.apk       ← 永远指向最新那版 arm64
   拉起系统安装器（首次会要求授予「安装未知应用」权限）；
 - Windows / macOS / Linux 直接打开 Release 页面手动下载。
 
-签名固定：由 `ANDROID_KEYSTORE_B64` 等 Secrets（推荐）或仓库内的
-`android/app/noval-release.jks` 提供，两者必须是同一把钥匙，详见上文「签名是固定的」。
+签名固定：由 `ANDROID_KEYSTORE_B64` 等四个 Secrets 注入，详见上文「签名是固定的」。
 
 ### 源大面积失效时，按这个顺序排
 
