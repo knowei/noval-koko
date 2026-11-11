@@ -786,5 +786,39 @@
       "content": "@js:(function () {\n  var page = String(java.ajax(String(baseUrl)));\n  function grab(re) { var m = re.exec(page); return m ? m[1] : ''; }\n  var mid = grab(/MANGABZ_MID\\s*=\\s*([0-9]+)/);\n  var cid = grab(/MANGABZ_CID\\s*=\\s*([0-9]+)/);\n  var sign = grab(/MANGABZ_VIEWSIGN\\s*=\\s*([0-9a-fA-F]+)/);\n  var cnt = parseInt(grab(/MANGABZ_IMAGE_COUNT\\s*=\\s*([0-9]+)/), 10);\n  if (!cid || !cnt) { return ''; }\n  var path = String(baseUrl).replace(/^https?:\\/\\/[^\\/]+/, '').replace(/\\/$/, '');\n  var out = [];\n  for (var p = 1; p <= cnt; p++) {\n    var api = 'https://www.mangabz.com' + path + '/chapterimage.ashx?cid=' + cid +\n      '&page=' + p + '&key=&_cid=' + cid + '&_mid=' + mid + '&_sign=' + sign + '&_dt=';\n    var payload = String(java.ajax(api));\n    var code = __unpack(payload);\n    if (!code) { continue; }\n    var imgs = null;\n    try { imgs = eval(code); } catch (e) { imgs = null; }\n    if (!imgs || !imgs.length) { continue; }\n    for (var i = 0; i < imgs.length; i++) {\n      out.push('<img src=\"' + imgs[i] + '\">');\n    }\n  }\n  return out.join('');\n})()",
       "nextContentUrl": ""
     }
+  },
+  {
+    "bookSourceUrl": "https://www.duokanmh.com",
+    "bookSourceName": "多看漫画",
+    "bookSourceGroup": "🧩漫画",
+    "bookSourceType": 2,
+    "bookSourceComment": "多看漫画。搜索/详情/目录全部是纯 HTML（目录一次给全 682 章）；章节图地址被加密在 var params 里，由站点自己的 cms-2.0.1.min.js + crypto-js 解密，这里在 QuickJS 里直接跑站点脚本解包。",
+    "enabled": true,
+    "searchUrl": "https://www.duokanmh.com/search?q={{key}}",
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\",\"Accept-Language\":\"zh-CN,zh;q=0.9\",\"Accept\":\"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\"}",
+    "ruleSearch": {
+      "bookList": "@css:ul.vodlist li",
+      "name": "@css:h4.title a@text",
+      "bookUrl": "@css:h4.title a@href",
+      "coverUrl": "@css:div.comic-cover!0@data-original",
+      "intro": "@css:p.text@text",
+      "checkKeyWord": ""
+    },
+    "ruleBookInfo": {
+      "name": "@css:h1.title span!0@text",
+      "author": "@js:(function(){var m=/作者：([^<]+)</.exec(String(result||''));return m?m[1].trim():'';})()",
+      "intro": "@css:p.desc span.left@text",
+      "coverUrl": "@css:div.comic-cover img!0@data-original",
+      "tocUrl": "",
+      "kind": "@js:(function(){var m=/类型：<a[^>]*>([^<]+)</.exec(String(result||''));return m?m[1].trim():'';})()"
+    },
+    "ruleToc": {
+      "chapterList": "@css:ul.chapter-list > li > a",
+      "chapterName": "text",
+      "chapterUrl": "href"
+    },
+    "ruleContent": {
+      "content": "@js:(function(){var html=String(result||'');var m=/var\\s+params\\s*=\\s*'([^']+)'/.exec(html);if(!m)return '';var raw=m[1].replace(/\\\\\\//g,'/').replace(/\\\\u([0-9a-fA-F]{4})/g,function(_,h){return String.fromCharCode(parseInt(h,16));});if(!globalThis.__dkLibs){eval(java.ajax('https://www.duokanmh.com/static/libs/crypto-js/4.1.1/crypto-js.min.js'));eval(java.ajax('https://www.duokanmh.com/static/js/cms-2.0.1.min.js?v=1.0.2'));var o=CryptoJS.AES.decrypt;CryptoJS.AES.decrypt=function(c,k,g){var r=o(c,k,g);if(globalThis.__dkCap==null){try{globalThis.__dkCap=r.toString(CryptoJS.enc.Hex);}catch(e){}}return r;};globalThis.__dkLibs=1;}globalThis.__dkCap=null;try{CMS.chapter.decrypt(raw);}catch(e){return '';}var hex=globalThis.__dkCap;if(!hex)return '';var b=[];for(var i=0;i<hex.length;i+=2)b.push(parseInt(hex.substr(i,2),16));var obj;try{obj=JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(b)));}catch(e){return '';}var host=obj.images_domain||(obj.images_hosts||[])[0]||obj.cdnurl||'';var list=obj.chapter_images||[];var out=[];for(var j=0;j<list.length;j++){var u=String(list[j]);if(!/^https?:/i.test(u)&&host){u=host.replace(/\\/$/,'')+(u.charAt(0)==='/'?u:'/'+u);}out.push('<img src=\"'+u+'\">');}return out.join('\\n');})()"
+    }
   }
 ]

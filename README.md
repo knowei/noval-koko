@@ -571,8 +571,16 @@ flutter test integration_test/curated_sources_test.dart -d windows
 | 📗中文轻小说 | 幻梦轻小说 `www.huanmengacg.com` | 小说 | 1 条（妹妹人生） | 17 章 | 433 字（按 `order` 排序去干扰段） |
 | 📖中文小说 | 笔趣阁 `m.bigee.cc` | 小说 | 3 条（剑来） | 1298 章 | 1063 字（`?all=1` 绕开门禁） |
 | 🧩漫画 | MangaBZ `www.mangabz.com` | 漫画 | 12 条（斗罗大陆） | 3 章 | 单章 35 张图（需 Referer + JS 解包） |
+| 🧩漫画 | 多看漫画 `www.duokanmh.com` | 漫画 | 3 条（斗破苍穹） | 681 章 | 单章 25 张图（站点自带 AES 解密器） |
 
 几个踩过的坑，改源前值得看一眼：
+
+- **`@css:a@text` 在「当前节点本身就是 `<a>`」时取不到值**：`querySelectorAll` 只找后代，
+  且 `@` 会被拆成空段。章节名/链接要写单段 `"text"` / `"href"`；`tocUrl` 别写
+  `@js:baseUrl`（会算出错值导致「目录为空」），留空即回落 bookUrl。
+- **图片地址被站点自己加密（多看漫画）**：章节页只有 `var params`，把站点的
+  `crypto-js` + `cms-2.0.1.min.js` 直接 `eval` 进 QuickJS，hook `CryptoJS.AES.decrypt`
+  抓明文（hex → UTF-8 → JSON）就能拿到 `chapter_images`，改密钥也不用动规则。
 
 - **图床 Referer 两副面孔**：`linovelib` 的图带 Referer 反而 403（不带才行，所以
   `TextUtil.imageHeaders` 默认不发）；`mangabz` 的图**不带就 403**，必须带同站域名。
